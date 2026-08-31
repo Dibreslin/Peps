@@ -6,38 +6,39 @@
 
 PEP'S es un sistema SaaS para gestión de consultorios psicológicos que permite:
 
-- 📅 Gestión de turnos con agenda recurrente
-- 👤 Administración de pacientes (con DNI y datos de contacto)
+- 📅 Gestión de turnos con agenda
+- 👤 Administración de pacientes
 - 💰 Control de pagos y saldos
 - 📊 Reportes y estadísticas
-- 🔐 Autenticación para profesionales y pacientes
-- 📱 Portal público para solicitud de turnos
+- 🔐 Autenticación para profesionales
 
 ## 🏗️ Tecnologías
 
-- **Frontend:** [Streamlit](https://streamlit.io)
-- **Backend/DB:** [Supabase](https://supabase.com) (PostgreSQL)
+- **Frontend:** Streamlit
+- **Backend/DB:** Supabase (PostgreSQL)
 - **Auth:** Supabase Auth
-- **Email:** Resend
 - **Hosting:** Streamlit Cloud
 
-## 🚀 Instalación Local
+## 🚀 Despliegue
 
-```bash
-# Clonar repositorio
-git clone https://github.com/tu-usuario/peps.git
-cd peps
+La app está disponible en: [https://peps.streamlit.app](https://peps.streamlit.app)
 
-# Crear entorno virtual
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate  # Windows
+## 🔐 Credenciales de Prueba
 
-# Instalar dependencias
-pip install -r requirements.txt
+- **Email:** marina@peps.com
+- **Contraseña:** 123456
 
-# Crear archivo .streamlit/secrets.toml con tus credenciales
-# (ver sección de configuración)
+## 📊 Base de Datos
 
-# Ejecutar app
-streamlit run app/main.py
+El modelo de datos incluye:
+
+- Organizaciones (SaaS multi-tenant)
+- Profesionales
+- Pacientes (con DNI y datos de contacto)
+- Espacios terapéuticos
+- Turnos (con estados y trazabilidad)
+- Pagos y saldos
+
+## 👩‍💻 Autora
+
+Desarrollado para el consultorio de Marina Breslin
