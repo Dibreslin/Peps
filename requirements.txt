@@ -1,4 +1,1 @@
 streamlit
-supabase
-python-dotenv
-plotly
