@@ -107,6 +107,85 @@ def get_disponibilidades():
     except Exception as e:
         return pd.DataFrame()
 
+def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inicio, hora_fin, duracion, fecha_desde, fecha_hasta):
+    """
+    Genera turnos automáticamente para un rango de fechas
+    """
+    if not supabase:
+        return {"error": "No hay conexión a Supabase"}
+    
+    try:
+        turnos_creados = 0
+        turnos_existentes = 0
+        errores = []
+        
+        # Convertir días seleccionados a lista de números (0=Domingo, 1=Lunes...)
+        dias_numeros = []
+        for dia in dias_seleccionados:
+            if dia == "Lunes": dias_numeros.append(1)
+            elif dia == "Martes": dias_numeros.append(2)
+            elif dia == "Miércoles": dias_numeros.append(3)
+            elif dia == "Jueves": dias_numeros.append(4)
+            elif dia == "Viernes": dias_numeros.append(5)
+            elif dia == "Sábado": dias_numeros.append(6)
+            elif dia == "Domingo": dias_numeros.append(0)
+        
+        # Generar fechas
+        fecha_actual = fecha_desde
+        delta = timedelta(days=1)
+        
+        while fecha_actual <= fecha_hasta:
+            # Verificar si es un día seleccionado
+            if fecha_actual.weekday() in dias_numeros:
+                # Generar turnos dentro del bloque horario
+                hora_actual = datetime.combine(fecha_actual, hora_inicio)
+                hora_final = datetime.combine(fecha_actual, hora_fin)
+                
+                while hora_actual + timedelta(minutes=duracion) <= hora_final:
+                    hora_fin_turno = hora_actual + timedelta(minutes=duracion)
+                    
+                    # Verificar si el turno ya existe (para no duplicar)
+                    try:
+                        check = supabase.table("turnos")\
+                            .select("id_turno")\
+                            .eq("fecha", fecha_actual.isoformat())\
+                            .eq("hora_inicio", hora_actual.time().strftime("%H:%M:%S"))\
+                            .execute()
+                        
+                        if not check.data:
+                            # Crear turno
+                            data = {
+                                "id_profesional": profesional_id,
+                                "id_organizacion": org_id,
+                                "fecha": fecha_actual.isoformat(),
+                                "hora_inicio": hora_actual.time().strftime("%H:%M:%S"),
+                                "hora_fin": hora_fin_turno.time().strftime("%H:%M:%S"),
+                                "duracion_minutos": duracion,
+                                "estado": "disponible",
+                                "origen": "masivo"
+                            }
+                            supabase.table("turnos").insert(data).execute()
+                            turnos_creados += 1
+                        else:
+                            turnos_existentes += 1
+                    except Exception as e:
+                        errores.append(str(e))
+                    
+                    hora_actual = hora_fin_turno
+            
+            fecha_actual += delta
+        
+        return {
+            "creados": turnos_creados,
+            "existentes": turnos_existentes,
+            "errores": errores
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+
+
 # ============================================
 # LOGIN
 # ============================================
@@ -249,11 +328,11 @@ elif menu == "🏥 Obras Sociales":
     st.info("🔧 Módulo en desarrollo - Próximamente")
 
 # ============================================
-# DISPONIBILIDAD
+# DISPONIBILIDAD - VERSIÓN MEJORADA
 # ============================================
 elif menu == "⏰ Disponibilidad":
-    st.title("⏰ Gestión de Disponibilidad")
-    st.subheader("Configuración de horarios del profesional")
+    st.title("⏰ Gestión de Agenda")
+    st.subheader("Configuración masiva de turnos")
     
     # Obtener el primer profesional
     profesional_id = None
@@ -268,79 +347,219 @@ elif menu == "⏰ Disponibilidad":
         st.info("💡 Primero debés configurar un profesional en la base de datos.")
         st.stop()
     
-    tab1, tab2 = st.tabs(["📋 Mi Disponibilidad", "➕ Nueva Disponibilidad"])
+    # ============================================
+    # TABS
+    # ============================================
+    tab1, tab2, tab3 = st.tabs(["📋 Turnos Generados", "🔄 Generar Turnos", "📊 Resumen"])
     
+    # ============================================
+    # TAB 1: Ver turnos generados
+    # ============================================
     with tab1:
-        st.subheader("Horarios configurados")
+        st.subheader("Turnos disponibles")
+        
+        # Filtro por fecha
+        col1, col2 = st.columns(2)
+        with col1:
+            fecha_desde_filtro = st.date_input("Desde", value=date.today())
+        with col2:
+            fecha_hasta_filtro = st.date_input("Hasta", value=date.today() + timedelta(days=30))
         
         try:
-            response = supabase.table("disponibilidades")\
+            response = supabase.table("turnos")\
                 .select("*")\
-                .eq("id_profesional", profesional_id)\
+                .gte("fecha", fecha_desde_filtro.isoformat())\
+                .lte("fecha", fecha_hasta_filtro.isoformat())\
+                .eq("estado", "disponible")\
                 .execute()
             
             if response.data:
                 df = pd.DataFrame(response.data)
-                dias = {0: "Domingo", 1: "Lunes", 2: "Martes", 3: "Miércoles", 4: "Jueves", 5: "Viernes", 6: "Sábado"}
-                df["dia_nombre"] = df["dia_semana"].map(dias)
-                
-                columnas = ["dia_nombre", "hora_inicio", "hora_fin", "duracion_minutos", "estado"]
+                # Mostrar solo columnas relevantes
+                columnas = ["fecha", "hora_inicio", "hora_fin", "estado"]
                 st.dataframe(df[columnas], use_container_width=True, hide_index=True)
+                st.caption(f"Total: {len(df)} turnos disponibles")
             else:
-                st.info("No hay horarios configurados")
+                st.info("No hay turnos disponibles en el rango seleccionado")
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
     
+    # ============================================
+    # TAB 2: Generar turnos masivos
+    # ============================================
     with tab2:
-        st.subheader("Configurar nuevo horario")
+        st.subheader("🔄 Generar turnos en masa")
+        st.caption("Define una regla y el sistema generará todos los turnos automáticamente")
         
-        with st.form("nueva_disponibilidad"):
+        with st.form("generar_turnos_masivos"):
+            st.markdown("### 📅 Configuración de la regla")
+            
             col1, col2 = st.columns(2)
             
             with col1:
-                dia_semana = st.selectbox(
-                    "Día de la semana",
-                    options=[(0, "Domingo"), (1, "Lunes"), (2, "Martes"), (3, "Miércoles"), 
-                             (4, "Jueves"), (5, "Viernes"), (6, "Sábado")],
-                    format_func=lambda x: x[1]
+                dias = st.multiselect(
+                    "Días de la semana",
+                    options=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+                    default=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
                 )
                 
-                hora_inicio = st.time_input("Hora de inicio", value=datetime.strptime("09:00", "%H:%M").time())
-                hora_fin = st.time_input("Hora de fin", value=datetime.strptime("17:00", "%H:%M").time())
+                hora_inicio = st.time_input("Hora de inicio", value=datetime.strptime("17:00", "%H:%M").time())
+                hora_fin = st.time_input("Hora de fin", value=datetime.strptime("20:00", "%H:%M").time())
             
             with col2:
-                duracion = st.selectbox("Duración de la sesión (minutos)", [30, 45, 50, 60, 90], index=2)
+                duracion = st.selectbox("Duración de la sesión (minutos)", [30, 45, 50, 60, 75, 90], index=2)
+                
                 fecha_desde = st.date_input("Fecha de inicio", value=date.today())
-                fecha_hasta = st.date_input("Fecha de fin (opcional)", value=None)
-                estado = st.selectbox("Estado", ["activo", "pausado"])
+                fecha_hasta = st.date_input("Fecha de fin", value=date.today() + timedelta(days=90))
             
-            if st.form_submit_button("💾 Guardar disponibilidad"):
-                if hora_inicio >= hora_fin:
-                    st.warning("⚠️ La hora de inicio debe ser anterior a la hora de fin")
-                else:
-                    org_id = get_org_id()
-                    if not org_id:
-                        st.error("❌ No hay organización configurada")
-                        st.stop()
-                    
-                    try:
-                        data = {
-                            "id_profesional": profesional_id,
-                            "id_organizacion": org_id,
-                            "dia_semana": dia_semana[0],
-                            "hora_inicio": hora_inicio.strftime("%H:%M:%S"),
-                            "hora_fin": hora_fin.strftime("%H:%M:%S"),
-                            "duracion_minutos": duracion,
-                            "fecha_desde": fecha_desde.isoformat(),
-                            "fecha_hasta": fecha_hasta.isoformat() if fecha_hasta else None,
-                            "estado": estado
-                        }
-                        supabase.table("disponibilidades").insert(data).execute()
-                        st.success("✅ Disponibilidad guardada correctamente")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-
+            # Mostrar resumen de lo que se va a generar
+            if dias and hora_inicio < hora_fin and fecha_desde <= fecha_hasta:
+                # Calcular cuántos turnos se generarían
+                dias_numeros = []
+                for dia in dias:
+                    if dia == "Lunes": dias_numeros.append(1)
+                    elif dia == "Martes": dias_numeros.append(2)
+                    elif dia == "Miércoles": dias_numeros.append(3)
+                    elif dia == "Jueves": dias_numeros.append(4)
+                    elif dia == "Viernes": dias_numeros.append(5)
+                    elif dia == "Sábado": dias_numeros.append(6)
+                    elif dia == "Domingo": dias_numeros.append(0)
+                
+                # Contar días hábiles
+                dias_habiles = 0
+                fecha_actual = fecha_desde
+                while fecha_actual <= fecha_hasta:
+                    if fecha_actual.weekday() in dias_numeros:
+                        dias_habiles += 1
+                    fecha_actual += timedelta(days=1)
+                
+                # Calcular turnos por día
+                minutos_totales = (datetime.combine(date.today(), hora_fin) - datetime.combine(date.today(), hora_inicio)).seconds // 60
+                turnos_por_dia = minutos_totales // duracion
+                total_turnos = dias_habiles * turnos_por_dia
+                
+                st.info(f"📊 Se generarán aproximadamente **{total_turnos}** turnos en **{dias_habiles}** días hábiles")
+            
+            st.divider()
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                confirmar = st.checkbox("✅ Confirmo que quiero generar estos turnos", value=False)
+            
+            with col2:
+                if st.form_submit_button("🚀 Generar Turnos", use_container_width=True, type="primary", disabled=not confirmar):
+                    if not dias:
+                        st.warning("⚠️ Seleccioná al menos un día")
+                    elif hora_inicio >= hora_fin:
+                        st.warning("⚠️ La hora de inicio debe ser anterior a la hora de fin")
+                    elif fecha_desde > fecha_hasta:
+                        st.warning("⚠️ La fecha de inicio debe ser anterior a la fecha de fin")
+                    else:
+                        org_id = get_org_id()
+                        if not org_id:
+                            st.error("❌ No hay organización configurada")
+                            st.stop()
+                        
+                        with st.spinner("🔄 Generando turnos..."):
+                            resultado = generar_turnos_masivos(
+                                profesional_id,
+                                org_id,
+                                dias,
+                                hora_inicio,
+                                hora_fin,
+                                duracion,
+                                fecha_desde,
+                                fecha_hasta
+                            )
+                        
+                        if "error" in resultado:
+                            st.error(f"❌ Error: {resultado['error']}")
+                        else:
+                            st.success(f"✅ Turnos generados correctamente")
+                            st.metric("🆕 Creados", resultado["creados"])
+                            st.metric("📌 Ya existentes", resultado["existentes"])
+                            if resultado["errores"]:
+                                st.warning(f"⚠️ {len(resultado['errores'])} errores")
+                            
+                            if resultado["creados"] > 0:
+                                st.rerun()
+    
+    # ============================================
+    # TAB 3: Resumen
+    # ============================================
+    with tab3:
+        st.subheader("📊 Resumen de la agenda")
+        
+        try:
+            # Total de turnos disponibles
+            response = supabase.table("turnos")\
+                .select("id_turno", count="exact")\
+                .eq("estado", "disponible")\
+                .execute()
+            total_disponibles = response.count
+            
+            # Turnos ocupados (con paciente asignado)
+            response = supabase.table("turnos")\
+                .select("id_turno", count="exact")\
+                .eq("estado", "programado")\
+                .execute()
+            total_programados = response.count
+            
+            # Turnos realizados
+            response = supabase.table("turnos")\
+                .select("id_turno", count="exact")\
+                .eq("estado", "realizado")\
+                .execute()
+            total_realizados = response.count
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📌 Disponibles", total_disponibles or 0)
+            with col2:
+                st.metric("📆 Programados", total_programados or 0)
+            with col3:
+                st.metric("✅ Realizados", total_realizados or 0)
+            
+            # Gráfico simple de ocupación
+            st.divider()
+            st.subheader("📈 Ocupación")
+            
+            # Próximos 7 días
+            st.caption("Próximos 7 días")
+            fechas = []
+            disponibles = []
+            ocupados = []
+            
+            for i in range(7):
+                fecha = date.today() + timedelta(days=i)
+                fechas.append(fecha.strftime("%d/%m"))
+                
+                # Contar disponibles
+                response = supabase.table("turnos")\
+                    .select("id_turno", count="exact")\
+                    .eq("fecha", fecha.isoformat())\
+                    .eq("estado", "disponible")\
+                    .execute()
+                disponibles.append(response.count or 0)
+                
+                # Contar ocupados
+                response = supabase.table("turnos")\
+                    .select("id_turno", count="exact")\
+                    .eq("fecha", fecha.isoformat())\
+                    .neq("estado", "disponible")\
+                    .execute()
+                ocupados.append(response.count or 0)
+            
+            # Mostrar como tabla
+            df_resumen = pd.DataFrame({
+                "Fecha": fechas,
+                "Disponibles": disponibles,
+                "Ocupados": ocupados
+            })
+            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+            
+        except Exception as e:
+            st.error(f"❌ Error obteniendo resumen: {str(e)}")
 # ============================================
 # FOOTER
 # ============================================
