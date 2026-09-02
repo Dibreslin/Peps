@@ -23,8 +23,8 @@ try:
     # Probar autenticación
     try:
         auth_response = supabase.auth.sign_in_with_password({
-            "email": "marina@peps.com",
-            "password": "123456"
+            "email": "admin@peps.com",
+            "password": "admin123"
         })
         st.success("✅ Login exitoso")
         st.write(f"Usuario: {auth_response.user.email}")
