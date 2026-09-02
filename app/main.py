@@ -100,6 +100,7 @@ def get_turnos_hoy():
         st.error(f"❌ Error obteniendo turnos: {str(e)}")
         return pd.DataFrame()
 
+
 # ============================================
 # LOGIN
 # ============================================
@@ -217,6 +218,7 @@ elif menu == "👤 Pacientes":
                             "nro_documento": nro_doc,
                             "telefono": telefono,
                             "email": email,
+                            "id_organizacion": "60a4fd4d-44f3-4d5e-b611-9aace064ea0b",
                             "fecha_nacimiento": fecha_nac.isoformat() if fecha_nac else None
                         }
                         response = supabase.table("pacientes").insert(data).execute()
