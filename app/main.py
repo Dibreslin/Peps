@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, date
-from supabase_client import get_supabase
+from supabase import create_client
 
 # ============================================
 # CONFIGURACIÓN
@@ -22,14 +22,35 @@ if "user" not in st.session_state:
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 
-# Conectar a Supabase
-supabase = get_supabase()
+# ============================================
+# CONEXIÓN A SUPABASE
+# ============================================
+try:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    st.error(f"❌ Error de conexión: {str(e)}")
+    st.stop()
+
+# ============================================
+# FUNCIÓN PARA OBTENER ID DE ORGANIZACIÓN
+# ============================================
+def get_org_id():
+    """Obtiene el ID de la primera organización"""
+    try:
+        response = supabase.table("organizaciones").select("id_organizacion").limit(1).execute()
+        if response.data:
+            return response.data[0]["id_organizacion"]
+        return None
+    except Exception as e:
+        st.error(f"❌ Error obteniendo organización: {str(e)}")
+        return None
 
 # ============================================
 # FUNCIONES DE AUTENTICACIÓN
 # ============================================
 def do_login(email, password):
-    """Login usando Supabase Auth"""
     if not supabase:
         st.error("❌ No hay conexión con Supabase")
         return False
@@ -63,7 +84,6 @@ def do_logout():
 # FUNCIONES PARA OBTENER DATOS
 # ============================================
 def get_pacientes():
-    """Obtener lista de pacientes"""
     if not supabase:
         return pd.DataFrame()
     
@@ -77,7 +97,6 @@ def get_pacientes():
         return pd.DataFrame()
 
 def get_turnos_hoy():
-    """Obtener turnos de hoy"""
     if not supabase:
         return pd.DataFrame()
     
@@ -90,7 +109,6 @@ def get_turnos_hoy():
         
         if response.data:
             df = pd.DataFrame(response.data)
-            # Formatear nombres
             df["paciente_nombre"] = df["pacientes"].apply(
                 lambda x: f"{x['nombre']} {x['apellido']}" if x else "Sin asignar"
             )
@@ -99,7 +117,6 @@ def get_turnos_hoy():
     except Exception as e:
         st.error(f"❌ Error obteniendo turnos: {str(e)}")
         return pd.DataFrame()
-
 
 # ============================================
 # LOGIN
@@ -114,7 +131,7 @@ if not st.session_state.authenticated:
             st.markdown("### 🔐 Acceso al Sistema")
             
             with st.form("login_form"):
-                email = st.text_input("📧 Email", placeholder="marina@peps.com")
+                email = st.text_input("📧 Email", placeholder="admin@peps.com")
                 password = st.text_input("🔑 Contraseña", type="password", placeholder="••••••••")
                 
                 if st.form_submit_button("🚀 Ingresar", use_container_width=True, type="primary"):
@@ -123,8 +140,7 @@ if not st.session_state.authenticated:
                         st.rerun()
             
             st.divider()
-            st.caption("📝 Usuario de prueba: marina@peps.com")
-            st.caption("🔑 Contraseña: configurada en Supabase Auth")
+            st.caption("📝 Usuario: admin@peps.com | Contraseña: admin123")
     
     st.stop()
 
@@ -153,11 +169,9 @@ if menu == "📅 Dashboard":
     st.title("📅 Dashboard")
     st.caption(f"📆 {datetime.now().strftime('%A, %d de %B de %Y')}")
     
-    # Obtener datos reales
     pacientes_df = get_pacientes()
     turnos_df = get_turnos_hoy()
     
-    # Métricas
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("👥 Pacientes", len(pacientes_df) if not pacientes_df.empty else 0)
@@ -169,11 +183,8 @@ if menu == "📅 Dashboard":
         st.metric("⏳ Pendientes", "$ 120.000")
     
     st.divider()
-    
-    # Turnos de hoy
     st.subheader("📋 Turnos de Hoy")
     if not turnos_df.empty:
-        # Mostrar solo las columnas relevantes
         columnas = ["hora_inicio", "paciente_nombre", "estado"]
         st.dataframe(turnos_df[columnas], use_container_width=True, hide_index=True)
     else:
@@ -210,18 +221,24 @@ elif menu == "👤 Pacientes":
             
             if st.form_submit_button("💾 Guardar Paciente"):
                 if nombre and apellido and nro_doc:
+                    # Obtener ID de organización automáticamente
+                    org_id = get_org_id()
+                    if not org_id:
+                        st.error("❌ No hay organización configurada. Creá una desde SQL.")
+                        st.stop()
+                    
                     try:
                         data = {
+                            "id_organizacion": org_id,
                             "nombre": nombre,
                             "apellido": apellido,
                             "tipo_documento": tipo_doc,
                             "nro_documento": nro_doc,
                             "telefono": telefono,
                             "email": email,
-                            "id_organizacion": "60a4fd4d-44f3-4d5e-b611-9aace064ea0b",
                             "fecha_nacimiento": fecha_nac.isoformat() if fecha_nac else None
                         }
-                        response = supabase.table("pacientes").insert(data).execute()
+                        supabase.table("pacientes").insert(data).execute()
                         st.success("✅ Paciente guardado correctamente")
                         st.rerun()
                     except Exception as e:
@@ -234,65 +251,21 @@ elif menu == "👤 Pacientes":
 # ============================================
 elif menu == "📆 Turnos":
     st.title("📆 Gestión de Turnos")
-    
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        fecha_selector = st.date_input("📅 Fecha", value=date.today())
-    
-    # Obtener pacientes para el select
-    pacientes_df = get_pacientes()
-    
-    st.divider()
-    
-    with st.form("nuevo_turno"):
-        col1, col2 = st.columns(2)
-        with col1:
-            paciente_id = st.selectbox(
-                "Paciente",
-                options=pacientes_df["id_paciente"].tolist() if not pacientes_df.empty else [],
-                format_func=lambda x: f"{pacientes_df[pacientes_df['id_paciente']==x]['nombre'].iloc[0]} {pacientes_df[pacientes_df['id_paciente']==x]['apellido'].iloc[0]}" if not pacientes_df.empty else "Sin pacientes"
-            )
-            hora_inicio = st.time_input("Hora de Inicio", value=datetime.strptime("10:00", "%H:%M").time())
-        with col2:
-            fecha = st.date_input("Fecha", value=fecha_selector)
-            duracion = st.selectbox("Duración (minutos)", [30, 45, 60], index=1)
-        
-        estado = st.selectbox("Estado", ["programado", "confirmado", "realizado", "cancelado"])
-        
-        if st.form_submit_button("💾 Guardar Turno"):
-            if paciente_id and fecha and hora_inicio:
-                try:
-                    # Calcular hora fin
-                    from datetime import timedelta
-                    hora_fin = (datetime.combine(date.today(), hora_inicio) + timedelta(minutes=duracion)).time()
-                    
-                    data = {
-                        "id_paciente": paciente_id,
-                        "fecha": fecha.isoformat(),
-                        "hora_inicio": hora_inicio.isoformat(),
-                        "hora_fin": hora_fin.isoformat(),
-                        "estado": estado,
-                        "duracion_minutos": duracion
-                    }
-                    response = supabase.table("turnos").insert(data).execute()
-                    st.success("✅ Turno guardado correctamente")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+    st.info("🔧 Módulo en desarrollo")
 
 # ============================================
 # PAGOS
 # ============================================
 elif menu == "💰 Pagos":
     st.title("💰 Gestión de Pagos")
-    st.info("🔧 Módulo en desarrollo - Próximamente")
+    st.info("🔧 Módulo en desarrollo")
 
 # ============================================
 # OBRAS SOCIALES
 # ============================================
 elif menu == "🏥 Obras Sociales":
     st.title("🏥 Gestión de Obras Sociales")
-    st.info("🔧 Módulo en desarrollo - Próximamente")
+    st.info("🔧 Módulo en desarrollo")
 
 # ============================================
 # FOOTER
