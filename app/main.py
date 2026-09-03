@@ -119,7 +119,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         turnos_existentes = 0
         errores = []
         
-        # Convertir días seleccionados a lista de números (0=Domingo, 1=Lunes...)
+        # Convertir días seleccionados a lista de números
         dias_numeros = []
         for dia in dias_seleccionados:
             if dia == "Lunes": dias_numeros.append(1)
@@ -135,25 +135,24 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         delta = timedelta(days=1)
         
         while fecha_actual <= fecha_hasta:
-            # Verificar si es un día seleccionado
             if fecha_actual.weekday() in dias_numeros:
-                # Generar turnos dentro del bloque horario
                 hora_actual = datetime.combine(fecha_actual, hora_inicio)
                 hora_final = datetime.combine(fecha_actual, hora_fin)
                 
                 while hora_actual + timedelta(minutes=duracion) <= hora_final:
                     hora_fin_turno = hora_actual + timedelta(minutes=duracion)
                     
-                    # Verificar si el turno ya existe (para no duplicar)
                     try:
+                        # Verificar si el turno ya existe (para no duplicar)
                         check = supabase.table("turnos")\
                             .select("id_turno")\
+                            .eq("id_profesional", profesional_id)\
                             .eq("fecha", fecha_actual.isoformat())\
                             .eq("hora_inicio", hora_actual.time().strftime("%H:%M:%S"))\
                             .execute()
                         
                         if not check.data:
-                            # Crear turno
+                            # Crear turno (con TODAS las claves foráneas)
                             data = {
                                 "id_profesional": profesional_id,
                                 "id_organizacion": org_id,
@@ -169,7 +168,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                         else:
                             turnos_existentes += 1
                     except Exception as e:
-                        errores.append(str(e))
+                        errores.append(f"{fecha_actual} {hora_actual.time()}: {str(e)}")
                     
                     hora_actual = hora_fin_turno
             
@@ -183,7 +182,6 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         
     except Exception as e:
         return {"error": str(e)}
-
 
 
 # ============================================
