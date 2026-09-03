@@ -447,7 +447,10 @@ elif menu == "⏰ Disponibilidad":
                 confirmar = st.checkbox("✅ Confirmo que quiero generar estos turnos", value=False)
             
             with col2:
-                if st.form_submit_button("🚀 Generar Turnos", use_container_width=True, type="primary", disabled=not confirmar):
+               if st.form_submit_button("🚀 Generar Turnos", use_container_width=True, type="primary"):
+                if not confirmar:
+                    st.warning("⚠️ Confirmá que querés generar los turnos")
+                else:       
                     if not dias:
                         st.warning("⚠️ Seleccioná al menos un día")
                     elif hora_inicio >= hora_fin:
