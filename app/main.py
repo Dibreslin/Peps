@@ -384,108 +384,154 @@ elif menu == "⏰ Disponibilidad":
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
     
-    # ============================================
+     # ============================================
     # TAB 2: Generar turnos masivos
     # ============================================
     with tab2:
         st.subheader("🔄 Generar turnos en masa")
         st.caption("Define una regla y el sistema generará todos los turnos automáticamente")
         
+        # ============================================
+        # CONFIGURACIÓN (fuera del form)
+        # ============================================
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            dias = st.multiselect(
+                "Días de la semana",
+                options=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
+                default=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
+                key="dias_disponibilidad"
+            )
+            
+            hora_inicio = st.time_input(
+                "Hora de inicio",
+                value=datetime.strptime("17:00", "%H:%M").time(),
+                key="hora_inicio_disponibilidad"
+            )
+            hora_fin = st.time_input(
+                "Hora de fin",
+                value=datetime.strptime("20:00", "%H:%M").time(),
+                key="hora_fin_disponibilidad"
+            )
+        
+        with col2:
+            duracion = st.selectbox(
+                "Duración de la sesión (minutos)",
+                [30, 45, 50, 60, 75, 90],
+                index=2,
+                key="duracion_disponibilidad"
+            )
+            
+            fecha_desde = st.date_input(
+                "Fecha de inicio",
+                value=date.today(),
+                key="fecha_desde_disponibilidad"
+            )
+            fecha_hasta = st.date_input(
+                "Fecha de fin",
+                value=date.today() + timedelta(days=90),
+                key="fecha_hasta_disponibilidad"
+            )
+        
+        # ============================================
+        # RESUMEN DINÁMICO (se actualiza con cada cambio)
+        # ============================================
+        st.divider()
+        
+        # Calcular turnos según los valores actuales
+        total_turnos = 0
+        dias_habiles = 0
+        
+        if dias and hora_inicio < hora_fin and fecha_desde <= fecha_hasta:
+            # Mapear días
+            dias_numeros = []
+            for dia in dias:
+                if dia == "Lunes": dias_numeros.append(1)
+                elif dia == "Martes": dias_numeros.append(2)
+                elif dia == "Miércoles": dias_numeros.append(3)
+                elif dia == "Jueves": dias_numeros.append(4)
+                elif dia == "Viernes": dias_numeros.append(5)
+                elif dia == "Sábado": dias_numeros.append(6)
+                elif dia == "Domingo": dias_numeros.append(0)
+            
+            # Contar días hábiles
+            fecha_actual = fecha_desde
+            while fecha_actual <= fecha_hasta:
+                if fecha_actual.weekday() in dias_numeros:
+                    dias_habiles += 1
+                fecha_actual += timedelta(days=1)
+            
+            # Calcular turnos por día
+            minutos_totales = (datetime.combine(date.today(), hora_fin) - datetime.combine(date.today(), hora_inicio)).seconds // 60
+            turnos_por_dia = minutos_totales // duracion
+            total_turnos = dias_habiles * turnos_por_dia
+            
+            # Mostrar resumen
+            st.info(f"📊 Se generarán aproximadamente **{total_turnos}** turnos en **{dias_habiles}** días hábiles")
+            
+            # Mostrar desglose
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("📅 Días hábiles", dias_habiles)
+            with col2:
+                st.metric("⏰ Turnos por día", turnos_por_dia)
+            with col3:
+                st.metric("📌 Total", total_turnos)
+        else:
+            st.warning("⚠️ Configurá correctamente los parámetros para ver el resumen")
+        
+        st.divider()
+        
+        # ============================================
+        # FORMULARIO PARA GENERAR
+        # ============================================
         with st.form("generar_turnos_masivos"):
-            st.markdown("### 📅 Configuración de la regla")
+            confirmar = st.checkbox("✅ Confirmo que quiero generar estos turnos", value=False)
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                dias = st.multiselect(
-                    "Días de la semana",
-                    options=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"],
-                    default=["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
-                )
-                
-                hora_inicio = st.time_input("Hora de inicio", value=datetime.strptime("17:00", "%H:%M").time())
-                hora_fin = st.time_input("Hora de fin", value=datetime.strptime("20:00", "%H:%M").time())
-            
-            with col2:
-                duracion = st.selectbox("Duración de la sesión (minutos)", [30, 45, 50, 60, 75, 90], index=2)
-                
-                fecha_desde = st.date_input("Fecha de inicio", value=date.today())
-                fecha_hasta = st.date_input("Fecha de fin", value=date.today() + timedelta(days=90))
-            
-            # Mostrar resumen de lo que se va a generar
-            if dias and hora_inicio < hora_fin and fecha_desde <= fecha_hasta:
-                # Calcular cuántos turnos se generarían
-                dias_numeros = []
-                for dia in dias:
-                    if dia == "Lunes": dias_numeros.append(1)
-                    elif dia == "Martes": dias_numeros.append(2)
-                    elif dia == "Miércoles": dias_numeros.append(3)
-                    elif dia == "Jueves": dias_numeros.append(4)
-                    elif dia == "Viernes": dias_numeros.append(5)
-                    elif dia == "Sábado": dias_numeros.append(6)
-                    elif dia == "Domingo": dias_numeros.append(0)
-                
-                # Contar días hábiles
-                dias_habiles = 0
-                fecha_actual = fecha_desde
-                while fecha_actual <= fecha_hasta:
-                    if fecha_actual.weekday() in dias_numeros:
-                        dias_habiles += 1
-                    fecha_actual += timedelta(days=1)
-                
-                # Calcular turnos por día
-                minutos_totales = (datetime.combine(date.today(), hora_fin) - datetime.combine(date.today(), hora_inicio)).seconds // 60
-                turnos_por_dia = minutos_totales // duracion
-                total_turnos = dias_habiles * turnos_por_dia
-                
-                st.info(f"📊 Se generarán aproximadamente **{total_turnos}** turnos en **{dias_habiles}** días hábiles")
-            
-            st.divider()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                confirmar = st.checkbox("✅ Confirmo que quiero generar estos turnos", value=False)
-            
-            with col2:
-               if st.form_submit_button("🚀 Generar Turnos", use_container_width=True, type="primary"):
+            if st.form_submit_button("🚀 Generar Turnos", use_container_width=True, type="primary"):
                 if not confirmar:
-                    st.warning("⚠️ Confirmá que querés generar los turnos")
-                else:       
-                    if not dias:
-                        st.warning("⚠️ Seleccioná al menos un día")
-                    elif hora_inicio >= hora_fin:
-                        st.warning("⚠️ La hora de inicio debe ser anterior a la hora de fin")
-                    elif fecha_desde > fecha_hasta:
-                        st.warning("⚠️ La fecha de inicio debe ser anterior a la fecha de fin")
+                    st.warning("⚠️ Marcá el checkbox para confirmar la generación")
+                elif not dias:
+                    st.warning("⚠️ Seleccioná al menos un día")
+                elif hora_inicio >= hora_fin:
+                    st.warning("⚠️ La hora de inicio debe ser anterior a la hora de fin")
+                elif fecha_desde > fecha_hasta:
+                    st.warning("⚠️ La fecha de inicio debe ser anterior a la fecha de fin")
+                elif total_turnos == 0:
+                    st.warning("⚠️ No hay turnos para generar con la configuración actual")
+                else:
+                    org_id = get_org_id()
+                    if not org_id:
+                        st.error("❌ No hay organización configurada")
+                        st.stop()
+                    
+                    with st.spinner("🔄 Generando turnos..."):
+                        resultado = generar_turnos_masivos(
+                            profesional_id,
+                            org_id,
+                            dias,
+                            hora_inicio,
+                            hora_fin,
+                            duracion,
+                            fecha_desde,
+                            fecha_hasta
+                        )
+                    
+                    if "error" in resultado:
+                        st.error(f"❌ Error: {resultado['error']}")
                     else:
-                        org_id = get_org_id()
-                        if not org_id:
-                            st.error("❌ No hay organización configurada")
-                            st.stop()
-                        
-                        with st.spinner("🔄 Generando turnos..."):
-                            resultado = generar_turnos_masivos(
-                                profesional_id,
-                                org_id,
-                                dias,
-                                hora_inicio,
-                                hora_fin,
-                                duracion,
-                                fecha_desde,
-                                fecha_hasta
-                            )
-                        
-                        if "error" in resultado:
-                            st.error(f"❌ Error: {resultado['error']}")
-                        else:
-                            st.success(f"✅ Turnos generados correctamente")
+                        st.success(f"✅ Turnos generados correctamente")
+                        col1, col2 = st.columns(2)
+                        with col1:
                             st.metric("🆕 Creados", resultado["creados"])
+                        with col2:
                             st.metric("📌 Ya existentes", resultado["existentes"])
-                            if resultado["errores"]:
-                                st.warning(f"⚠️ {len(resultado['errores'])} errores")
-                            
-                            if resultado["creados"] > 0:
-                                st.rerun()
+                        if resultado["errores"]:
+                            st.warning(f"⚠️ {len(resultado['errores'])} errores")
+                        
+                        if resultado["creados"] > 0:
+                            st.rerun()
     
     # ============================================
     # TAB 3: Resumen
