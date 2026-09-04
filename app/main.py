@@ -197,6 +197,49 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
     except Exception as e:
         return {"error": str(e)}
 
+def asignar_paciente_a_turno(turno_id, paciente_id, espacio_id=None):
+    """
+    Asigna un paciente a un turno
+    """
+    if not supabase:
+        return {"error": "No hay conexión a Supabase"}
+    
+    try:
+        # Verificar que el turno existe y está disponible
+        check = supabase.table("turnos").select("estado, id_paciente").eq("id_turno", turno_id).execute()
+        if not check.data:
+            return {"error": "El turno no existe"}
+        
+        turno = check.data[0]
+        if turno["estado"] != "disponible":
+            return {"error": f"El turno no está disponible (estado: {turno['estado']})"}
+        
+        if turno["id_paciente"]:
+            return {"error": "El turno ya tiene un paciente asignado"}
+        
+        # Obtener organización
+        org_id = get_org_id()
+        if not org_id:
+            return {"error": "No hay organización configurada"}
+        
+        # Asignar paciente al turno
+        update_data = {
+            "id_paciente": paciente_id,
+            "estado": "programado"
+        }
+        
+        if espacio_id:
+            update_data["id_espacio"] = espacio_id
+        
+        response = supabase.table("turnos")\
+            .update(update_data)\
+            .eq("id_turno", turno_id)\
+            .execute()
+        
+        return {"success": True, "message": "Paciente asignado correctamente"}
+        
+    except Exception as e:
+        return {"error": str(e)}
 
 # ============================================
 # LOGIN
@@ -408,7 +451,7 @@ elif menu == "⏰ Disponibilidad":
                 st.caption(f"Total: {len(df)} turnos")
                 
                 # ============================================
-                # SECCIÓN DE ACCIONES (NUEVO)
+                # SECCIÓN DE ACCIONES (COMPLETA)
                 # ============================================
                 st.divider()
                 st.subheader("🔧 Acciones sobre turnos")
@@ -426,56 +469,61 @@ elif menu == "⏰ Disponibilidad":
                         "Seleccioná un turno para modificar",
                         options=turnos_opciones,
                         format_func=lambda x: x["label"],
-                        key="turno_seleccionado_tab1"
+                        key="turno_seleccionado_acciones"
                     )
                     
                     if turno_seleccionado:
                         # Obtener datos del turno seleccionado
                         turno_data = df[df["id_turno"] == turno_seleccionado["id"]].iloc[0]
                         estado_actual = turno_data["estado"]
-                        tiene_paciente = turno_data.get("id_paciente") is not None
                         
-                        col1, col2 = st.columns(2)
+                        # ============================================
+                        # TRES COLUMNAS: Estado | Eliminar | Asignar
+                        # ============================================
+                        col1, col2, col3 = st.columns(3)  # ← AHORA SON 3
                         
+                        # COLUMNA 1: Cambiar estado
                         with col1:
-                            st.markdown("**Cambiar estado**")
+                            st.markdown("**🔄 Cambiar estado**")
                             
-                            # Estados disponibles según el estado actual
-                            if estado_actual == "disponible":
-                                opciones_estado = ["disponible", "programado", "confirmado"]
-                            elif estado_actual == "programado":
-                                opciones_estado = ["programado", "confirmado", "realizado", "cancelado"]
-                            elif estado_actual == "confirmado":
-                                opciones_estado = ["confirmado", "realizado", "cancelado"]
+                            if estado_actual not in ["realizado", "cancelado"]:
+                                if estado_actual == "disponible":
+                                    opciones_estado = ["disponible", "programado", "confirmado"]
+                                elif estado_actual == "programado":
+                                    opciones_estado = ["programado", "confirmado", "realizado", "cancelado"]
+                                elif estado_actual == "confirmado":
+                                    opciones_estado = ["confirmado", "realizado", "cancelado"]
+                                else:
+                                    opciones_estado = [estado_actual]
+                                
+                                idx_actual = opciones_estado.index(estado_actual) if estado_actual in opciones_estado else 0
+                                
+                                nuevo_estado = st.selectbox(
+                                    "Nuevo estado",
+                                    options=opciones_estado,
+                                    index=idx_actual,
+                                    key="nuevo_estado_acciones"
+                                )
+                                
+                                if st.button("🔄 Actualizar", key="btn_actualizar_acciones"):
+                                    try:
+                                        supabase.table("turnos")\
+                                            .update({"estado": nuevo_estado})\
+                                            .eq("id_turno", turno_seleccionado["id"])\
+                                            .execute()
+                                        st.success(f"✅ Estado actualizado a **{nuevo_estado}**")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Error: {str(e)}")
                             else:
-                                opciones_estado = [estado_actual]
-                            
-                            idx_actual = opciones_estado.index(estado_actual) if estado_actual in opciones_estado else 0
-                            
-                            nuevo_estado = st.selectbox(
-                                "Nuevo estado",
-                                options=opciones_estado,
-                                index=idx_actual,
-                                key="nuevo_estado_tab1"
-                            )
-                            
-                            if st.button("🔄 Actualizar estado", key="btn_actualizar_tab1"):
-                                try:
-                                    supabase.table("turnos")\
-                                        .update({"estado": nuevo_estado})\
-                                        .eq("id_turno", turno_seleccionado["id"])\
-                                        .execute()
-                                    st.success(f"✅ Estado actualizado a **{nuevo_estado}**")
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"❌ Error: {str(e)}")
+                                st.info(f"Este turno está **{estado_actual}** y no se puede modificar")
                         
+                        # COLUMNA 2: Eliminar turno
                         with col2:
-                            st.markdown("**Eliminar turno**")
+                            st.markdown("**🗑️ Eliminar turno**")
                             
-                            # Solo se puede eliminar si está disponible
                             if estado_actual == "disponible":
-                                if st.button("🗑️ Eliminar turno", type="secondary", key="btn_eliminar_tab1"):
+                                if st.button("🗑️ Eliminar", type="secondary", key="btn_eliminar_acciones"):
                                     try:
                                         supabase.table("turnos")\
                                             .delete()\
@@ -486,14 +534,42 @@ elif menu == "⏰ Disponibilidad":
                                     except Exception as e:
                                         st.error(f"❌ Error: {str(e)}")
                             else:
-                                st.info(f"🔒 No se puede eliminar un turno con estado **{estado_actual}**")
+                                st.info(f"🔒 No se puede eliminar un turno **{estado_actual}**")
+                        
+                        # COLUMNA 3: Asignar paciente (NUEVO)
+                        with col3:
+                            st.markdown("**👤 Asignar paciente**")
+                            
+                            if estado_actual == "disponible":
+                                pacientes_df = get_pacientes()
+                                
+                                if not pacientes_df.empty:
+                                    paciente_seleccionado = st.selectbox(
+                                        "Seleccionar paciente",
+                                        options=pacientes_df["id_paciente"].tolist(),
+                                        format_func=lambda x: f"{pacientes_df[pacientes_df['id_paciente']==x]['nombre'].iloc[0]} {pacientes_df[pacientes_df['id_paciente']==x]['apellido'].iloc[0]}",
+                                        key="paciente_asignar_acciones"
+                                    )
+                                    
+                                    if st.button("📌 Asignar", key="btn_asignar_acciones"):
+                                        try:
+                                            supabase.table("turnos")\
+                                                .update({
+                                                    "id_paciente": paciente_seleccionado,
+                                                    "estado": "programado"
+                                                })\
+                                                .eq("id_turno", turno_seleccionado["id"])\
+                                                .execute()
+                                            st.success("✅ Paciente asignado correctamente")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ Error: {str(e)}")
+                                else:
+                                    st.info("No hay pacientes registrados")
+                            else:
+                                st.info(f"🔒 Turno {estado_actual}")
                 else:
-                    st.info("No hay turnos para gestionar")
-            else:
-                st.info("No hay turnos en el rango seleccionado")
-        except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
-    
+                    st.info("No hay turnos para gestionar")    
      # ============================================
     # TAB 2: Generar turnos masivos
     # ============================================
