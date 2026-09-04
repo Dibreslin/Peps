@@ -569,7 +569,11 @@ elif menu == "⏰ Disponibilidad":
                             else:
                                 st.info(f"🔒 Turno {estado_actual}")
                 else:
-                    st.info("No hay turnos para gestionar")    
+                    st.info("No hay turnos para gestionar")
+            
+            # ⬇️ ESTO ES LO QUE FALTA ⬇️
+            except Exception as e:
+                st.error(f"❌ Error al cargar turnos: {str(e)}")                
      # ============================================
     # TAB 2: Generar turnos masivos
     # ============================================
