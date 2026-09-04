@@ -540,7 +540,9 @@ elif menu == "⏰ Disponibilidad":
                         with col2:
                             st.metric("📌 Ya existentes", resultado["existentes"])
                         if resultado["errores"]:
-                            st.warning(f"⚠️ {len(resultado['errores'])} errores")
+                            with st.expander(f"⚠️ Ver {len(resultado['errores'])} errores"):
+                                for error in resultado["errores"]:
+                                    st.code(error)    
                         
                         if resultado["creados"] > 0:
                             st.rerun()
