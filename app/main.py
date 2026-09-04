@@ -115,6 +115,20 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         return {"error": "No hay conexión a Supabase"}
     
     try:
+        # ============================================
+        # VALIDACIÓN: Verificar que los IDs existen
+        # ============================================
+        check_prof = supabase.table("profesionales").select("id_profesional").eq("id_profesional", profesional_id).execute()
+        if not check_prof.data:
+            return {"error": f"El profesional {profesional_id} no existe en la base de datos"}
+        
+        check_org = supabase.table("organizaciones").select("id_organizacion").eq("id_organizacion", org_id).execute()
+        if not check_org.data:
+            return {"error": f"La organización {org_id} no existe en la base de datos"}
+        
+        # ============================================
+        # GENERAR TURNOS
+        # ============================================
         turnos_creados = 0
         turnos_existentes = 0
         errores = []
@@ -143,7 +157,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                     hora_fin_turno = hora_actual + timedelta(minutes=duracion)
                     
                     try:
-                        # Verificar si el turno ya existe (para no duplicar)
+                        # Verificar si el turno ya existe
                         check = supabase.table("turnos")\
                             .select("id_turno")\
                             .eq("id_profesional", profesional_id)\
@@ -152,7 +166,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                             .execute()
                         
                         if not check.data:
-                            # Crear turno (con TODAS las claves foráneas)
+                            # Insertar turno
                             data = {
                                 "id_profesional": profesional_id,
                                 "id_organizacion": org_id,
@@ -177,7 +191,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         return {
             "creados": turnos_creados,
             "existentes": turnos_existentes,
-            "errores": errores
+            "errores": errores[:10]  # Solo mostrar los primeros 10 errores
         }
         
     except Exception as e:
