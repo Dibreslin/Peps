@@ -407,7 +407,7 @@ elif menu == "⏰ Disponibilidad":
     # ============================================
     tab1, tab2, tab3 = st.tabs(["📋 Turnos Generados", "🔄 Generar Turnos", "📊 Resumen"])
     
-       # ============================================
+    # ============================================
     # TAB 1: Ver y gestionar turnos generados
     # ============================================
     with tab1:
@@ -433,7 +433,6 @@ elif menu == "⏰ Disponibilidad":
                 .gte("fecha", fecha_desde_filtro.isoformat())\
                 .lte("fecha", fecha_hasta_filtro.isoformat())
             
-            # Aplicar filtro de estado
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
             
@@ -442,7 +441,6 @@ elif menu == "⏰ Disponibilidad":
             if response.data:
                 df = pd.DataFrame(response.data)
                 
-                # Mostrar tabla
                 st.dataframe(
                     df[["fecha", "hora_inicio", "hora_fin", "estado"]],
                     use_container_width=True,
@@ -456,7 +454,6 @@ elif menu == "⏰ Disponibilidad":
                 st.divider()
                 st.subheader("🔧 Acciones sobre turnos")
                 
-                # Crear lista de turnos para seleccionar
                 turnos_opciones = []
                 for _, row in df.iterrows():
                     turnos_opciones.append({
@@ -473,16 +470,11 @@ elif menu == "⏰ Disponibilidad":
                     )
                     
                     if turno_seleccionado:
-                        # Obtener datos del turno seleccionado
                         turno_data = df[df["id_turno"] == turno_seleccionado["id"]].iloc[0]
                         estado_actual = turno_data["estado"]
                         
-                        # ============================================
-                        # TRES COLUMNAS: Estado | Eliminar | Asignar
-                        # ============================================
-                        col1, col2, col3 = st.columns(3)  # ← AHORA SON 3
+                        col1, col2, col3 = st.columns(3)
                         
-                        # COLUMNA 1: Cambiar estado
                         with col1:
                             st.markdown("**🔄 Cambiar estado**")
                             
@@ -518,7 +510,6 @@ elif menu == "⏰ Disponibilidad":
                             else:
                                 st.info(f"Este turno está **{estado_actual}** y no se puede modificar")
                         
-                        # COLUMNA 2: Eliminar turno
                         with col2:
                             st.markdown("**🗑️ Eliminar turno**")
                             
@@ -536,7 +527,6 @@ elif menu == "⏰ Disponibilidad":
                             else:
                                 st.info(f"🔒 No se puede eliminar un turno **{estado_actual}**")
                         
-                        # COLUMNA 3: Asignar paciente (NUEVO)
                         with col3:
                             st.markdown("**👤 Asignar paciente**")
                             
@@ -570,10 +560,11 @@ elif menu == "⏰ Disponibilidad":
                                 st.info(f"🔒 Turno {estado_actual}")
                 else:
                     st.info("No hay turnos para gestionar")
-            
-            # ⬇️ ESTO ES LO QUE FALTA ⬇️
-            except Exception as e:
-                st.error(f"❌ Error al cargar turnos: {str(e)}")                
+            else:
+                st.info("No hay turnos en el rango seleccionado")
+        
+        except Exception as e:
+            st.error(f"❌ Error al cargar turnos: {str(e)}")
      # ============================================
     # TAB 2: Generar turnos masivos
     # ============================================
