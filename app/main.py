@@ -386,6 +386,27 @@ elif menu == "⏰ Disponibilidad":
                 query = query.eq("estado", estado_filtro)
             
             response = query.execute()
+                        # ============================================
+            # DIAGNÓSTICO DE DATOS
+            # ============================================
+            st.write("---")
+            st.subheader("🔍 Diagnóstico de datos")
+            
+            # Mostrar cantidad de registros encontrados
+            if response.data:
+                st.success(f"✅ Se encontraron {len(response.data)} turnos")
+                
+                # Mostrar los primeros 3 turnos como ejemplo
+                st.write("📋 Ejemplo de los primeros 3 turnos:")
+                for i, turno in enumerate(response.data[:3]):
+                    st.write(f"{i+1}. Fecha: {turno.get('fecha')} - Hora: {turno.get('hora_inicio')} - Estado: {turno.get('estado')}")
+                
+                # Mostrar las columnas disponibles
+                st.write(f"📊 Columnas disponibles: {list(response.data[0].keys())}")
+            else:
+                st.warning("⚠️ No se encontraron turnos en el rango seleccionado")
+            
+            st.write("---")
             
             if response.data:
                 df = pd.DataFrame(response.data)
