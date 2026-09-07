@@ -645,8 +645,8 @@ elif menu == "⏰ Disponibilidad":
             dias_habiles = 0
             fecha_actual = fecha_desde
             
-            # DIAGNÓSTICO: Mostrar qué días encuentra
-            st.write(f"🔍 Buscando días: {dias_seleccionados}")
+            # DIAGNÓSTICO (dentro de generar_turnos_masivos)
+            st.write(f"🔍 Días seleccionados: {dias_seleccionados}")
             st.write(f"🔍 Números de días: {dias_numeros}")
             
             while fecha_actual <= fecha_hasta:
