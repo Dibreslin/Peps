@@ -408,15 +408,13 @@ elif menu == "⏰ Disponibilidad":
             
             st.write("---")
             
-            if response.data:
+                        if response.data:
                 df = pd.DataFrame(response.data)
                 
-                st.dataframe(
-                    df[["fecha", "hora_inicio", "hora_fin", "estado"]],
-                    use_container_width=True,
-                    hide_index=True
-                )
-                st.caption(f"Total: {len(df)} turnos")
+                # Mostrar los datos con st.write (más confiable)
+                st.subheader("📋 Lista de turnos")
+                st.write(df[["fecha", "hora_inicio", "hora_fin", "estado"]])
+                st.caption(f"📊 Total: {len(df)} turnos")
                 
                 # ============================================
                 # SECCIÓN DE ACCIONES (COMPLETA)
