@@ -630,8 +630,8 @@ elif menu == "⏰ Disponibilidad":
             fecha_actual = fecha_desde
             
             # DIAGNÓSTICO (dentro de generar_turnos_masivos)
-            st.write(f"🔍 Días seleccionados: {dias_seleccionados}")
-            st.write(f"🔍 Números de días: {dias_numeros}")
+            # st.write(f"🔍 Días seleccionados: {dias_seleccionados}")
+            # st.write(f"🔍 Números de días: {dias_numeros}")
             
             while fecha_actual <= fecha_hasta:
                 # Verificar si el día actual está en la lista
