@@ -573,13 +573,13 @@ elif menu == "⏰ Disponibilidad":
             # Mapear días
             dias_numeros = []
             for dia in dias:
-                if dia == "Lunes": dias_numeros.append(1)
-                elif dia == "Martes": dias_numeros.append(2)
-                elif dia == "Miércoles": dias_numeros.append(3)
-                elif dia == "Jueves": dias_numeros.append(4)
-                elif dia == "Viernes": dias_numeros.append(5)
-                elif dia == "Sábado": dias_numeros.append(6)
-                elif dia == "Domingo": dias_numeros.append(0)
+                if dia == "Lunes": dias_numeros.append(0)
+                elif dia == "Martes": dias_numeros.append(1)
+                elif dia == "Miércoles": dias_numeros.append(2)
+                elif dia == "Jueves": dias_numeros.append(3)
+                elif dia == "Viernes": dias_numeros.append(4)
+                elif dia == "Sábado": dias_numeros.append(5)
+                elif dia == "Domingo": dias_numeros.append(6)
             
 
             # Calcular días hábiles
