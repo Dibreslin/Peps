@@ -374,6 +374,10 @@ elif menu == "⏰ Disponibilidad":
         
         try:
             # Consulta base
+            # DIAGNÓSTICO DE FECHAS
+            st.write(f"🔍 Fecha desde: {fecha_desde_filtro.strftime('%Y-%m-%d')}")
+            st.write(f"🔍 Fecha hasta: {fecha_hasta_filtro.strftime('%Y-%m-%d')}")
+            
             query = supabase.table("turnos")\
                 .select("*")\
                 .gte("fecha", fecha_desde_filtro.strftime("%Y-%m-%d"))\
