@@ -406,9 +406,8 @@ elif menu == "⏰ Disponibilidad":
             else:
                 st.warning("⚠️ No se encontraron turnos en el rango seleccionado")
             
-            st.write("---")
-            
-                        if response.data:
+            st.write("---")     
+            if response.data:
                 df = pd.DataFrame(response.data)
                 
                 # Mostrar los datos con st.write (más confiable)
