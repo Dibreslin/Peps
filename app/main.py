@@ -181,49 +181,6 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         
     except Exception as e:
         return {"error": str(e)}
-def asignar_paciente_a_turno(turno_id, paciente_id, espacio_id=None):
-    """
-    Asigna un paciente a un turno
-    """
-    if not supabase:
-        return {"error": "No hay conexión a Supabase"}
-    
-    try:
-        # Verificar que el turno existe y está disponible
-        check = supabase.table("turnos").select("estado, id_paciente").eq("id_turno", turno_id).execute()
-        if not check.data:
-            return {"error": "El turno no existe"}
-        
-        turno = check.data[0]
-        if turno["estado"] != "disponible":
-            return {"error": f"El turno no está disponible (estado: {turno['estado']})"}
-        
-        if turno["id_paciente"]:
-            return {"error": "El turno ya tiene un paciente asignado"}
-        
-        # Obtener organización
-        org_id = get_org_id()
-        if not org_id:
-            return {"error": "No hay organización configurada"}
-        
-        # Asignar paciente al turno
-        update_data = {
-            "id_paciente": paciente_id,
-            "estado": "programado"
-        }
-        
-        if espacio_id:
-            update_data["id_espacio"] = espacio_id
-        
-        response = supabase.table("turnos")\
-            .update(update_data)\
-            .eq("id_turno", turno_id)\
-            .execute()
-        
-        return {"success": True, "message": "Paciente asignado correctamente"}
-        
-    except Exception as e:
-        return {"error": str(e)}
 
 # ============================================
 # LOGIN
@@ -630,8 +587,6 @@ elif menu == "⏰ Disponibilidad":
             fecha_actual = fecha_desde
             
             # DIAGNÓSTICO (dentro de generar_turnos_masivos)
-            # st.write(f"🔍 Días seleccionados: {dias_seleccionados}")
-            # st.write(f"🔍 Números de días: {dias_numeros}")
             
             while fecha_actual <= fecha_hasta:
                 # Verificar si el día actual está en la lista
@@ -640,7 +595,7 @@ elif menu == "⏰ Disponibilidad":
                     st.write(f"✅ Día encontrado: {fecha_actual} ({fecha_actual.weekday()})")  # DIAGNÓSTICO
                 fecha_actual += timedelta(days=1)
             
-            st.write(f"🔍 Total días hábiles encontrados: {dias_habiles}")  # DIAGNÓSTICO
+
 
          
             # Calcular turnos por día
