@@ -337,6 +337,7 @@ elif menu == "👤 Pacientes":
             
             if st.form_submit_button("💾 Guardar Paciente"):
                 if nombre and apellido and nro_doc:
+                    # Obtener ID de organización
                     org_id = get_org_id()
                     if not org_id:
                         st.error("❌ No hay organización configurada")
@@ -357,7 +358,11 @@ elif menu == "👤 Pacientes":
                         st.success("✅ Paciente guardado correctamente")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                        error_msg = str(e)
+                        if "duplicate key" in error_msg or "uk_paciente_org_doc" in error_msg:
+                            st.warning("⚠️ **Ya existe un paciente con ese DNI** en el sistema. Verificá los datos.")
+                        else:
+                            st.error(f"❌ Error: {error_msg}")
                 else:
                     st.warning("⚠️ Completá los campos obligatorios (*)")
 
@@ -636,13 +641,25 @@ elif menu == "⏰ Disponibilidad":
                 elif dia == "Sábado": dias_numeros.append(6)
                 elif dia == "Domingo": dias_numeros.append(0)
             
-            # Contar días hábiles
+
+            # Calcular días hábiles
+            dias_habiles = 0
             fecha_actual = fecha_desde
+            
+            # DIAGNÓSTICO: Mostrar qué días encuentra
+            st.write(f"🔍 Buscando días: {dias_seleccionados}")
+            st.write(f"🔍 Números de días: {dias_numeros}")
+            
             while fecha_actual <= fecha_hasta:
+                # Verificar si el día actual está en la lista
                 if fecha_actual.weekday() in dias_numeros:
                     dias_habiles += 1
+                    st.write(f"✅ Día encontrado: {fecha_actual} ({fecha_actual.weekday()})")  # DIAGNÓSTICO
                 fecha_actual += timedelta(days=1)
             
+            st.write(f"🔍 Total días hábiles encontrados: {dias_habiles}")  # DIAGNÓSTICO
+
+         
             # Calcular turnos por día
             minutos_totales = (datetime.combine(date.today(), hora_fin) - datetime.combine(date.today(), hora_inicio)).seconds // 60
             turnos_por_dia = minutos_totales // duracion
