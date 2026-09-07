@@ -86,7 +86,7 @@ def get_pacientes():
 
 def get_turnos_hoy():
     try:
-        hoy = date.today().isoformat()
+        hoy = date.today().strftime("%Y-%m-%d")
         response = supabase.table("turnos").select("*, pacientes(nombre, apellido)").eq("fecha", hoy).execute()
         if response.data:
             df = pd.DataFrame(response.data)
@@ -170,7 +170,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                             data = {
                                 "id_profesional": profesional_id,
                                 "id_organizacion": org_id,
-                                "fecha": fecha_actual.isoformat(),
+                                "fecha": fecha_actual.strftime("%Y-%m-%d"),
                                 "hora_inicio": hora_actual.time().strftime("%H:%M:%S"),
                                 "hora_fin": hora_fin_turno.time().strftime("%H:%M:%S"),
                                 "duracion_minutos": duracion,
@@ -435,8 +435,8 @@ elif menu == "⏰ Disponibilidad":
             # Consulta base
             query = supabase.table("turnos")\
                 .select("*")\
-                .gte("fecha", fecha_desde_filtro.isoformat())\
-                .lte("fecha", fecha_hasta_filtro.isoformat())
+                .gte("fecha", fecha_desde_filtro.strftime("%Y-%m-%d"))
+                .lte("fecha", fecha_hasta_filtro.strftime("%Y-%m-%d"))
             
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
