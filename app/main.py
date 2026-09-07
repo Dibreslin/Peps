@@ -434,9 +434,9 @@ elif menu == "⏰ Disponibilidad":
         try:
             # Consulta base
             query = supabase.table("turnos")\
-    .select("*")\
-    .gte("fecha", fecha_desde_filtro.strftime("%Y-%m-%d"))
-    .lte("fecha", fecha_hasta_filtro.strftime("%Y-%m-%d"))  # ← ERROR ACÁ
+                .select("*")\
+                .gte("fecha", fecha_desde_filtro.strftime("%Y-%m-%d"))\
+                .lte("fecha", fecha_hasta_filtro.strftime("%Y-%m-%d"))
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
             
