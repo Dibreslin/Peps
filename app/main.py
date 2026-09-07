@@ -122,13 +122,13 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         # Convertir días seleccionados a lista de números
         dias_numeros = []
         for dia in dias_seleccionados:
-            if dia == "Lunes": dias_numeros.append(1)
-            elif dia == "Martes": dias_numeros.append(2)
-            elif dia == "Miércoles": dias_numeros.append(3)
-            elif dia == "Jueves": dias_numeros.append(4)
-            elif dia == "Viernes": dias_numeros.append(5)
-            elif dia == "Sábado": dias_numeros.append(6)
-            elif dia == "Domingo": dias_numeros.append(0)
+            if dia == "Lunes": dias_numeros.append(0)
+            elif dia == "Martes": dias_numeros.append(1)
+            elif dia == "Miércoles": dias_numeros.append(2)
+            elif dia == "Jueves": dias_numeros.append(3)
+            elif dia == "Viernes": dias_numeros.append(4)
+            elif dia == "Sábado": dias_numeros.append(5)
+            elif dia == "Domingo": dias_numeros.append(6)
         
         # Generar fechas
         fecha_actual = fecha_desde
