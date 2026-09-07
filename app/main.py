@@ -565,7 +565,7 @@ elif menu == "⏰ Disponibilidad":
         
         except Exception as e:
             st.error(f"❌ Error al cargar turnos: {str(e)}")
-     # ============================================
+    # ============================================
     # TAB 2: Generar turnos masivos
     # ============================================
     with tab2:
