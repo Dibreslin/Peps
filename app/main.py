@@ -115,20 +115,6 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         return {"error": "No hay conexión a Supabase"}
     
     try:
-        # ============================================
-        # VALIDACIÓN: Verificar que los IDs existen
-        # ============================================
-        check_prof = supabase.table("profesionales").select("id_profesional").eq("id_profesional", profesional_id).execute()
-        if not check_prof.data:
-            return {"error": f"El profesional {profesional_id} no existe en la base de datos"}
-        
-        check_org = supabase.table("organizaciones").select("id_organizacion").eq("id_organizacion", org_id).execute()
-        if not check_org.data:
-            return {"error": f"La organización {org_id} no existe en la base de datos"}
-        
-        # ============================================
-        # GENERAR TURNOS
-        # ============================================
         turnos_creados = 0
         turnos_existentes = 0
         errores = []
@@ -161,12 +147,12 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                         check = supabase.table("turnos")\
                             .select("id_turno")\
                             .eq("id_profesional", profesional_id)\
-                            .eq("fecha", fecha_actual.isoformat())\
+                            .eq("fecha", fecha_actual.strftime("%Y-%m-%d"))\
                             .eq("hora_inicio", hora_actual.time().strftime("%H:%M:%S"))\
                             .execute()
                         
                         if not check.data:
-                            # Insertar turno
+                            # Crear turno
                             data = {
                                 "id_profesional": profesional_id,
                                 "id_organizacion": org_id,
@@ -174,8 +160,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                                 "hora_inicio": hora_actual.time().strftime("%H:%M:%S"),
                                 "hora_fin": hora_fin_turno.time().strftime("%H:%M:%S"),
                                 "duracion_minutos": duracion,
-                                "estado": "disponible",
-                                "origen": "masivo"
+                                "estado": "disponible"
                             }
                             supabase.table("turnos").insert(data).execute()
                             turnos_creados += 1
@@ -191,12 +176,11 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
         return {
             "creados": turnos_creados,
             "existentes": turnos_existentes,
-            "errores": errores[:10]  # Solo mostrar los primeros 10 errores
+            "errores": errores[:10]
         }
         
     except Exception as e:
         return {"error": str(e)}
-
 def asignar_paciente_a_turno(turno_id, paciente_id, espacio_id=None):
     """
     Asigna un paciente a un turno
