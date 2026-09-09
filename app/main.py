@@ -461,12 +461,12 @@ elif menu == "⏰ Disponibilidad":
             # ============================================
             # DIAGNÓSTICO DE DATOS
             # ============================================
-            st.write("---")
-            st.subheader("🔍 Diagnóstico de datos")
+            #st.write("---")
+            #st.subheader("🔍 Diagnóstico de datos")
             
             # Mostrar cantidad de registros encontrados
-            if response.data:
-                st.success(f"✅ Se encontraron {len(response.data)} turnos")
+            #if response.data:
+            #   st.success(f"✅ Se encontraron {len(response.data)} turnos")
                 
                 # Mostrar los primeros 3 turnos como ejemplo
                 #st.write("📋 Ejemplo de los primeros 3 turnos:")
