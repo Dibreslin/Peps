@@ -469,16 +469,16 @@ elif menu == "⏰ Disponibilidad":
                 st.success(f"✅ Se encontraron {len(response.data)} turnos")
                 
                 # Mostrar los primeros 3 turnos como ejemplo
-                st.write("📋 Ejemplo de los primeros 3 turnos:")
-                for i, turno in enumerate(response.data[:3]):
-                    st.write(f"{i+1}. Fecha: {turno.get('fecha')} - Hora: {turno.get('hora_inicio')} - Estado: {turno.get('estado')}")
+                #st.write("📋 Ejemplo de los primeros 3 turnos:")
+                #for i, turno in enumerate(response.data[:3]):
+                #    st.write(f"{i+1}. Fecha: {turno.get('fecha')} - Hora: {turno.get('hora_inicio')} - Estado: {turno.get('estado')}")
                 
                 # Mostrar las columnas disponibles
-                st.write(f"📊 Columnas disponibles: {list(response.data[0].keys())}")
-            else:
-                st.warning("⚠️ No se encontraron turnos en el rango seleccionado")
+                #st.write(f"📊 Columnas disponibles: {list(response.data[0].keys())}")
+            #else:
+             #   st.warning("⚠️ No se encontraron turnos en el rango seleccionado")
             
-            st.write("---")     
+            #st.write("---")     
             if response.data:
                 df = pd.DataFrame(response.data)
                 
