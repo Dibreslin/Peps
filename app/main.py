@@ -375,18 +375,23 @@ elif menu == "⏰ Disponibilidad":
         try:
             # Consulta base
             # DIAGNÓSTICO DE FECHAS
-            st.write(f"🔍 Fecha desde: {fecha_desde_filtro.strftime('%Y-%m-%d')}")
-            st.write(f"🔍 Fecha hasta: {fecha_hasta_filtro.strftime('%Y-%m-%d')}")
+            # Convertir fechas a string
+            fecha_desde_str = fecha_desde_filtro.strftime("%Y-%m-%d")
+            fecha_hasta_str = fecha_hasta_filtro.strftime("%Y-%m-%d")
             
+            # Consulta base
             query = supabase.table("turnos")\
                 .select("*")\
                 .gte("fecha", fecha_desde_str)\
-                .lte("fecha", fecha_hasta_str)\
-                .limit(1000)  # ← Para asegurar que trae todos
+                .lte("fecha", fecha_hasta_str)
+            
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
             
             response = query.execute()
+            
+            # DIAGNÓSTICO
+            st.write(f"🔍 Turnos encontrados: {len(response.data) if response.data else 0}")
             # ============================================
             # DIAGNÓSTICO DE DATOS
             # ============================================
