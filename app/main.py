@@ -73,6 +73,70 @@ def do_logout():
     st.rerun()
 
 # ============================================
+# FUNCION de cancelar_turno_y_reprogramar
+# ============================================
+
+def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
+    """
+    Cancela un turno y crea uno nuevo disponible en el mismo horario
+    Solo si la fecha/hora es futura
+    """
+    if not supabase:
+        return {"error": "No hay conexión a Supabase"}
+    
+    try:
+        # Obtener el turno
+        response = supabase.table("turnos").select("*").eq("id_turno", turno_id).execute()
+        if not response.data:
+            return {"error": "El turno no existe"}
+        
+        turno = response.data[0]
+        
+        # Verificar si la fecha/hora ya pasó
+        fecha_hora_turno = datetime.combine(
+            datetime.strptime(turno["fecha"], "%Y-%m-%d").date(),
+            datetime.strptime(turno["hora_inicio"], "%H:%M:%S").time()
+        )
+        
+        if fecha_hora_turno < datetime.now():
+            return {"error": "No se puede cancelar un turno con fecha/hora anterior a la actual"}
+        
+        # 1. Marcar el turno original como cancelado (histórico)
+        supabase.table("turnos")\
+            .update({
+                "estado": "cancelado",
+                "fecha_caducacion": datetime.now().isoformat(),
+                "motivo_cancelacion": motivo
+            })\
+            .eq("id_turno", turno_id)\
+            .execute()
+        
+        # 2. Crear un nuevo turno en el mismo horario (disponible)
+        nuevo_turno = {
+            "id_profesional": turno["id_profesional"],
+            "id_organizacion": turno["id_organizacion"],
+            "fecha": turno["fecha"],
+            "hora_inicio": turno["hora_inicio"],
+            "hora_fin": turno["hora_fin"],
+            "duracion_minutos": turno["duracion_minutos"],
+            "estado": "disponible",
+            "origen": "reprogramacion",
+            "fecha_alta": datetime.now().isoformat()
+        }
+        
+        supabase.table("turnos").insert(nuevo_turno).execute()
+        
+        return {
+            "success": True,
+            "message": "Turno cancelado y reemplazado por uno disponible",
+            "turno_original": turno_id,
+            "nuevo_turno": nuevo_turno
+        }
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+# ============================================
 # FUNCIONES PARA OBTENER DATOS
 # ============================================
 def get_pacientes():
@@ -484,21 +548,38 @@ elif menu == "⏰ Disponibilidad":
                                 st.info(f"Este turno está **{estado_actual}** y no se puede modificar")
                         
                         with col2:
-                            st.markdown("**🗑️ Eliminar turno**")
+                            st.markdown("**🗑️ Cancelar turno**")
                             
-                            if estado_actual == "disponible":
-                                if st.button("🗑️ Eliminar", type="secondary", key="btn_eliminar_acciones"):
-                                    try:
-                                        supabase.table("turnos")\
-                                            .delete()\
-                                            .eq("id_turno", turno_seleccionado["id"])\
-                                            .execute()
-                                        st.success("✅ Turno eliminado correctamente")
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"❌ Error: {str(e)}")
+                            if estado_actual in ["disponible", "programado", "confirmado"]:
+                                # Verificar si la fecha/hora ya pasó
+                                try:
+                                    fecha_hora_turno = datetime.combine(
+                                        datetime.strptime(turno_data["fecha"], "%Y-%m-%d").date(),
+                                        datetime.strptime(turno_data["hora_inicio"], "%H:%M:%S").time()
+                                    )
+                                    es_futuro = fecha_hora_turno > datetime.now()
+                                except:
+                                    es_futuro = True
+                                
+                                if es_futuro:
+                                    motivo = st.text_input("Motivo de cancelación (opcional)", key="motivo_cancelacion")
+                                    
+                                    if st.button("🗑️ Cancelar y liberar horario", type="secondary", key="btn_cancelar_acciones"):
+                                        with st.spinner("🔄 Cancelando turno..."):
+                                            resultado = cancelar_turno_y_reprogramar(
+                                                turno_seleccionado["id"],
+                                                motivo or "Cancelado por usuario"
+                                            )
+                                        
+                                        if "error" in resultado:
+                                            st.error(f"❌ {resultado['error']}")
+                                        else:
+                                            st.success(f"✅ {resultado['message']}")
+                                            st.rerun()
+                                else:
+                                    st.info("🔒 Este turno ya pasó y no se puede cancelar")
                             else:
-                                st.info(f"🔒 No se puede eliminar un turno **{estado_actual}**")
+                                st.info(f"🔒 Este turno está {estado_actual} y no se puede cancelar")
                         
                         with col3:
                             st.markdown("**👤 Asignar paciente**")
