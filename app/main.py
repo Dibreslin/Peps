@@ -382,11 +382,12 @@ elif menu == "⏰ Disponibilidad":
                 .select("*")\
                 .gte("fecha", fecha_desde_filtro.strftime("%Y-%m-%d"))\
                 .lte("fecha", fecha_hasta_filtro.strftime("%Y-%m-%d"))
+                .limit(1000)
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
             
             response = query.execute()
-                        # ============================================
+            # ============================================
             # DIAGNÓSTICO DE DATOS
             # ============================================
             st.write("---")
