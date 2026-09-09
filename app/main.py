@@ -224,7 +224,8 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                                 "hora_inicio": hora_actual.time().strftime("%H:%M:%S"),
                                 "hora_fin": hora_fin_turno.time().strftime("%H:%M:%S"),
                                 "duracion_minutos": duracion,
-                                "estado": "disponible"
+                                "estado": "disponible",
+                                "fecha_alta": datetime.now().isoformat()  
                             }
                             supabase.table("turnos").insert(data).execute()
                             turnos_creados += 1
@@ -447,7 +448,8 @@ elif menu == "⏰ Disponibilidad":
             query = supabase.table("turnos")\
                 .select("*")\
                 .gte("fecha", fecha_desde_str)\
-                .lte("fecha", fecha_hasta_str)
+                .lte("fecha", fecha_hasta_str)\
+                .is_("fecha_caducacion", "null")  # ← SOLO TURNOS ACTIVOS
             
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
