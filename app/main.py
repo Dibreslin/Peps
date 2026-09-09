@@ -380,9 +380,9 @@ elif menu == "⏰ Disponibilidad":
             
             query = supabase.table("turnos")\
                 .select("*")\
-                .gte("fecha", fecha_desde_filtro.strftime("%Y-%m-%d"))\
-                .lte("fecha", fecha_hasta_filtro.strftime("%Y-%m-%d"))
-                .limit(1000)
+                .gte("fecha", fecha_desde_str)\
+                .lte("fecha", fecha_hasta_str)\
+                .limit(1000)  # ← Para asegurar que trae todos
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
             
