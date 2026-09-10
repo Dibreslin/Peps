@@ -18,61 +18,37 @@ st.markdown("""
 <style>
     /* Reducir padding general */
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        padding-left: 2rem !important;
-        padding-right: 2rem !important;
-    }
-    
-    /* Reducir espacio entre elementos */
-    .stElementContainer {
-        margin-bottom: 0.3rem !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
     }
     
     /* Reducir tamaño de títulos */
-    h1 {
-        font-size: 1.5rem !important;
-        margin-bottom: 0.3rem !important;
-    }
-    h2 {
-        font-size: 1.2rem !important;
-        margin-bottom: 0.3rem !important;
-    }
-    h3 {
-        font-size: 1rem !important;
-        margin-bottom: 0.2rem !important;
-    }
+    h1 { font-size: 1.3rem !important; margin-bottom: 0.2rem !important; }
+    h2 { font-size: 1.1rem !important; margin-bottom: 0.2rem !important; }
+    h3 { font-size: 0.95rem !important; margin-bottom: 0.1rem !important; }
     
-    /* Reducir padding de tablas */
-    .stDataFrame {
-        font-size: 0.85rem !important;
-    }
+    /* Reducir espacio entre elementos */
+    .stElementContainer { margin-bottom: 0.2rem !important; }
+    
+    /* Reducir tamaño de tablas */
+    .stDataFrame { font-size: 0.8rem !important; }
     
     /* Reducir espacio en métricas */
-    .stMetric {
-        padding: 0.3rem !important;
-    }
+    .stMetric { padding: 0.2rem !important; }
     
     /* Reducir espacio en formularios */
-    .stForm {
-        padding: 0.5rem !important;
-    }
+    .stForm { padding: 0.3rem !important; }
     
     /* Reducir espacio en la barra lateral */
-    section[data-testid="stSidebar"] {
-        padding-top: 1rem !important;
-    }
+    section[data-testid="stSidebar"] { padding-top: 0.5rem !important; }
     
     /* Reducir espacio entre columnas */
-    .stColumns {
-        gap: 0.5rem !important;
-    }
+    .stColumns { gap: 0.3rem !important; }
     
     /* Reducir espacio en divider */
-    hr {
-        margin-top: 0.5rem !important;
-        margin-bottom: 0.5rem !important;
-    }
+    hr { margin: 0.3rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 # ============================================
