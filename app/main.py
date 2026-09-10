@@ -575,7 +575,7 @@ elif menu == "⏰ Disponibilidad":
                 # ============================================
                 # SECCIÓN DE ACCIONES
                 # ============================================
-                st.divider()
+                #st.divider()
                 st.subheader("🔧 Acciones sobre turnos")
                 
                 turnos_opciones = []
