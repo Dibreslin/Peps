@@ -11,49 +11,31 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide"
 )
-# ============================================
-# CSS PERSONALIZADO - REDUCIR ESPACIOS
-# ============================================
+
 # ============================================
 # CSS PERSONALIZADO - REDUCIR ESPACIOS
 # ============================================
 st.markdown("""
 <style>
-    /* Reducir padding general pero dejar espacio arriba */
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 0.5rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
     }
-    
-    /* Reducir tamaño de títulos */
     h1 { font-size: 1.3rem !important; margin-top: 0.5rem !important; margin-bottom: 0.2rem !important; }
     h2 { font-size: 1.1rem !important; margin-top: 0.3rem !important; margin-bottom: 0.2rem !important; }
     h3 { font-size: 0.95rem !important; margin-top: 0.2rem !important; margin-bottom: 0.1rem !important; }
-    
-    /* Reducir espacio entre elementos */
     .stElementContainer { margin-bottom: 0.2rem !important; }
-    
-    /* Reducir tamaño de tablas */
     .stDataFrame { font-size: 0.8rem !important; }
-    
-    /* Reducir espacio en métricas */
     .stMetric { padding: 0.2rem !important; }
-    
-    /* Reducir espacio en formularios */
     .stForm { padding: 0.3rem !important; }
-    
-    /* Reducir espacio en la barra lateral */
     section[data-testid="stSidebar"] { padding-top: 0.5rem !important; }
-    
-    /* Reducir espacio entre columnas */
     .stColumns { gap: 0.3rem !important; }
-    
-    /* Reducir espacio en divider */
     hr { margin: 0.3rem 0 !important; }
 </style>
 """, unsafe_allow_html=True)
+
 # ============================================
 # INICIALIZACIÓN
 # ============================================
@@ -92,6 +74,78 @@ def get_org_id():
         return None
 
 # ============================================
+# FUNCIONES DE AUDITORÍA
+# ============================================
+
+def get_usuario_actual():
+    """Obtiene el ID del usuario actual desde la sesión"""
+    try:
+        if "user" not in st.session_state or not st.session_state.user:
+            return None
+        
+        email = st.session_state.user
+        
+        response = supabase.table("usuarios").select("id_usuario").eq("email", email).execute()
+        if response.data:
+            return response.data[0]["id_usuario"]
+        return None
+    except Exception as e:
+        return None
+
+
+def insertar_con_auditoria(tabla, data):
+    """
+    Inserta un registro agregando automáticamente fecha_alta y usuario_alta
+    """
+    try:
+        data["fecha_alta"] = datetime.now().isoformat()
+        
+        usuario_id = get_usuario_actual()
+        if usuario_id:
+            data["usuario_alta"] = usuario_id
+        
+        response = supabase.table(tabla).insert(data).execute()
+        return response
+    except Exception as e:
+        raise e
+
+
+def obtener_activos(tabla, columnas="*"):
+    """
+    Obtiene solo los registros activos (fecha_caducacion IS NULL)
+    """
+    try:
+        response = supabase.table(tabla)\
+            .select(columnas)\
+            .is_("fecha_caducacion", "null")\
+            .execute()
+        return response
+    except Exception as e:
+        raise e
+
+
+def eliminar_logico(tabla, campo_id, valor_id):
+    """
+    Eliminación lógica: actualiza fecha_caducacion en lugar de borrar
+    """
+    try:
+        data = {
+            "fecha_caducacion": datetime.now().isoformat()
+        }
+        
+        usuario_id = get_usuario_actual()
+        if usuario_id:
+            data["usuario_caducacion"] = usuario_id
+        
+        response = supabase.table(tabla)\
+            .update(data)\
+            .eq(campo_id, valor_id)\
+            .execute()
+        return response
+    except Exception as e:
+        raise e
+
+# ============================================
 # FUNCIONES DE AUTENTICACIÓN
 # ============================================
 def do_login(email, password):
@@ -119,9 +173,8 @@ def do_logout():
     st.rerun()
 
 # ============================================
-# FUNCION de cancelar_turno_y_reprogramar
+# FUNCIÓN cancelar_turno_y_reprogramar
 # ============================================
-
 def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
     """
     Cancela un turno y crea uno nuevo disponible en el mismo horario
@@ -147,12 +200,18 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
             return {"error": "No se puede cancelar un turno con fecha/hora anterior a la actual"}
         
         # 1. Marcar el turno original como cancelado (histórico)
+        data_cancelacion = {
+            "estado": "cancelado",
+            "fecha_caducacion": datetime.now().isoformat(),
+            "motivo_cancelacion": motivo
+        }
+        
+        usuario_id = get_usuario_actual()
+        if usuario_id:
+            data_cancelacion["usuario_caducacion"] = usuario_id
+        
         supabase.table("turnos")\
-            .update({
-                "estado": "cancelado",
-                "fecha_caducacion": datetime.now().isoformat(),
-                "motivo_cancelacion": motivo
-            })\
+            .update(data_cancelacion)\
             .eq("id_turno", turno_id)\
             .execute()
         
@@ -165,11 +224,10 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
             "hora_fin": turno["hora_fin"],
             "duracion_minutos": turno["duracion_minutos"],
             "estado": "disponible",
-            "origen": "reprogramacion",
-            "fecha_alta": datetime.now().isoformat()
+            "origen": "reprogramacion"
         }
         
-        supabase.table("turnos").insert(nuevo_turno).execute()
+        insertar_con_auditoria("turnos", nuevo_turno)
         
         # LIMPIAR EL ESTADO DE SESIÓN para evitar errores
         if "turno_seleccionado" in st.session_state:
@@ -178,8 +236,7 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
         return {
             "success": True,
             "message": "Turno cancelado y reemplazado por uno disponible",
-            "turno_original": turno_id,
-            "nuevo_turno": nuevo_turno
+            "turno_original": turno_id
         }
         
     except Exception as e:
@@ -190,7 +247,7 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
 # ============================================
 def get_pacientes():
     try:
-        response = supabase.table("pacientes").select("*").execute()
+        response = obtener_activos("pacientes")
         if response.data:
             return pd.DataFrame(response.data)
         return pd.DataFrame()
@@ -200,7 +257,11 @@ def get_pacientes():
 def get_turnos_hoy():
     try:
         hoy = date.today().strftime("%Y-%m-%d")
-        response = supabase.table("turnos").select("*, pacientes(nombre, apellido)").eq("fecha", hoy).execute()
+        response = supabase.table("turnos")\
+            .select("*, pacientes(nombre, apellido)")\
+            .eq("fecha", hoy)\
+            .is_("fecha_caducacion", "null")\
+            .execute()
         if response.data:
             df = pd.DataFrame(response.data)
             df["paciente_nombre"] = df["pacientes"].apply(
@@ -213,7 +274,7 @@ def get_turnos_hoy():
 
 def get_disponibilidades():
     try:
-        response = supabase.table("disponibilidades").select("*").execute()
+        response = obtener_activos("disponibilidades")
         if response.data:
             return pd.DataFrame(response.data)
         return pd.DataFrame()
@@ -262,6 +323,7 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                             .eq("id_profesional", profesional_id)\
                             .eq("fecha", fecha_actual.strftime("%Y-%m-%d"))\
                             .eq("hora_inicio", hora_actual.time().strftime("%H:%M:%S"))\
+                            .is_("fecha_caducacion", "null")\
                             .execute()
                         
                         if not check.data:
@@ -273,10 +335,9 @@ def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inic
                                 "hora_inicio": hora_actual.time().strftime("%H:%M:%S"),
                                 "hora_fin": hora_fin_turno.time().strftime("%H:%M:%S"),
                                 "duracion_minutos": duracion,
-                                "estado": "disponible",
-                                "fecha_alta": datetime.now().isoformat()  
+                                "estado": "disponible"
                             }
-                            supabase.table("turnos").insert(data).execute()
+                            insertar_con_auditoria("turnos", data)
                             turnos_creados += 1
                         else:
                             turnos_existentes += 1
@@ -392,7 +453,6 @@ elif menu == "👤 Pacientes":
             
             if st.form_submit_button("💾 Guardar Paciente"):
                 if nombre and apellido and nro_doc:
-                    # Obtener ID de organización
                     org_id = get_org_id()
                     if not org_id:
                         st.error("❌ No hay organización configurada")
@@ -409,7 +469,7 @@ elif menu == "👤 Pacientes":
                             "email": email,
                             "fecha_nacimiento": fecha_nac.isoformat() if fecha_nac else None
                         }
-                        supabase.table("pacientes").insert(data).execute()
+                        insertar_con_auditoria("pacientes", data)
                         st.success("✅ Paciente guardado correctamente")
                         st.rerun()
                     except Exception as e:
@@ -487,58 +547,24 @@ elif menu == "⏰ Disponibilidad":
             )
         
         try:
-            # Consulta base
-            # DIAGNÓSTICO DE FECHAS
             # Convertir fechas a string
             fecha_desde_str = fecha_desde_filtro.strftime("%Y-%m-%d")
             fecha_hasta_str = fecha_hasta_filtro.strftime("%Y-%m-%d")
             
-            # Consulta base
+            # Consulta base (solo turnos activos)
             query = supabase.table("turnos")\
                 .select("*")\
                 .gte("fecha", fecha_desde_str)\
                 .lte("fecha", fecha_hasta_str)\
-                .is_("fecha_caducacion", "null")  # ← SOLO TURNOS ACTIVOS
+                .is_("fecha_caducacion", "null")
             
             if estado_filtro != "todos":
                 query = query.eq("estado", estado_filtro)
             
             response = query.execute()
             
-            # DIAGNÓSTICO
-            # st.write(f"🔍 Turnos encontrados: {len(response.data) if response.data else 0}")
-            # ============================================
-            # DIAGNÓSTICO DE DATOS
-            # ============================================
-            #st.write("---")
-            #st.subheader("🔍 Diagnóstico de datos")
-            
-            # Mostrar cantidad de registros encontrados
-            #if response.data:
-            #   st.success(f"✅ Se encontraron {len(response.data)} turnos")
-                
-                # Mostrar los primeros 3 turnos como ejemplo
-                #st.write("📋 Ejemplo de los primeros 3 turnos:")
-                #for i, turno in enumerate(response.data[:3]):
-                #    st.write(f"{i+1}. Fecha: {turno.get('fecha')} - Hora: {turno.get('hora_inicio')} - Estado: {turno.get('estado')}")
-                
-                # Mostrar las columnas disponibles
-                #st.write(f"📊 Columnas disponibles: {list(response.data[0].keys())}")
-            #else:
-             #   st.warning("⚠️ No se encontraron turnos en el rango seleccionado")
-            
-            #st.write("---")     
             if response.data:
                 df = pd.DataFrame(response.data)
-                
-                # Mostrar los datos con st.write (más confiable)
-                #st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
-                
-                # Usar dataframe con selección
-                df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
-                df_mostrar["fecha"] = pd.to_datetime(df_mostrar["fecha"]).dt.strftime("%Y-%m-%d")
-                
-                #st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
                 
                 # Usar dataframe con selección
                 df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
@@ -575,7 +601,6 @@ elif menu == "⏰ Disponibilidad":
                 # ============================================
                 # SECCIÓN DE ACCIONES
                 # ============================================
-                #st.divider()
                 st.subheader("🔧 Acciones sobre turnos")
                 
                 turnos_opciones = []
@@ -586,10 +611,8 @@ elif menu == "⏰ Disponibilidad":
                     })
                 
                 if turnos_opciones:
-                    # Key dinámica
                     key_dinamica = f"turno_seleccionado_acciones_{st.session_state.contador_grilla}"
                     
-                    # Determinar índice del turno seleccionado
                     opciones_ids = [op["id"] for op in turnos_opciones]
                     turno_guardado = st.session_state.get("turno_seleccionado_id", None)
                     
@@ -606,12 +629,10 @@ elif menu == "⏰ Disponibilidad":
                         key=key_dinamica
                     )
                     
-                     # Sincronizar la selección del selectbox con session_state
                     if turno_seleccionado:
                         st.session_state["turno_seleccionado_id"] = turno_seleccionado["id"]
                     
                     if turno_seleccionado:
-                        # Buscar el turno en el DataFrame
                         turno_data_filtrado = df[df["id_turno"] == turno_seleccionado["id"]]
                         
                         if turno_data_filtrado.empty:
@@ -620,7 +641,8 @@ elif menu == "⏰ Disponibilidad":
                         turno_data = turno_data_filtrado.iloc[0]
                         estado_actual = turno_data["estado"]
                         
-                        col1, col2, col3 = st.columns(3)                        
+                        col1, col2, col3 = st.columns(3)
+                        
                         with col1:
                             st.markdown("**🔄 Cambiar estado**")
                             
@@ -683,7 +705,6 @@ elif menu == "⏰ Disponibilidad":
                                             st.error(f"❌ {resultado['error']}")
                                         else:
                                             st.success(f"✅ {resultado['message']}")
-                                            # Forzar rerun para limpiar la selección
                                             st.rerun()
                                 else:
                                     st.info("🔒 Este turno ya pasó y no se puede cancelar")
@@ -728,6 +749,7 @@ elif menu == "⏰ Disponibilidad":
         
         except Exception as e:
             st.error(f"❌ Error al cargar turnos: {str(e)}")
+    
     # ============================================
     # TAB 2: Generar turnos masivos
     # ============================================
@@ -735,9 +757,6 @@ elif menu == "⏰ Disponibilidad":
         st.subheader("🔄 Generar turnos en masa")
         st.caption("Define una regla y el sistema generará todos los turnos automáticamente")
         
-        # ============================================
-        # CONFIGURACIÓN (fuera del form)
-        # ============================================
         col1, col2 = st.columns(2)
         
         with col1:
@@ -778,9 +797,6 @@ elif menu == "⏰ Disponibilidad":
                 key="fecha_hasta_disponibilidad"
             )
         
-        # ============================================
-        # RESUMEN DINÁMICO (se actualiza con cada cambio)
-        # ============================================
         st.divider()
         
         # Calcular turnos según los valores actuales
@@ -788,7 +804,6 @@ elif menu == "⏰ Disponibilidad":
         dias_habiles = 0
         
         if dias and hora_inicio < hora_fin and fecha_desde <= fecha_hasta:
-            # Mapear días
             dias_numeros = []
             for dia in dias:
                 if dia == "Lunes": dias_numeros.append(0)
@@ -799,32 +814,18 @@ elif menu == "⏰ Disponibilidad":
                 elif dia == "Sábado": dias_numeros.append(5)
                 elif dia == "Domingo": dias_numeros.append(6)
             
-
-            # Calcular días hábiles
-            dias_habiles = 0
             fecha_actual = fecha_desde
-            
-            # DIAGNÓSTICO (dentro de generar_turnos_masivos)
-            
             while fecha_actual <= fecha_hasta:
-                # Verificar si el día actual está en la lista
                 if fecha_actual.weekday() in dias_numeros:
                     dias_habiles += 1
-                    st.write(f"✅ Día encontrado: {fecha_actual} ({fecha_actual.weekday()})")  # DIAGNÓSTICO
                 fecha_actual += timedelta(days=1)
             
-
-
-         
-            # Calcular turnos por día
             minutos_totales = (datetime.combine(date.today(), hora_fin) - datetime.combine(date.today(), hora_inicio)).seconds // 60
             turnos_por_dia = minutos_totales // duracion
             total_turnos = dias_habiles * turnos_por_dia
             
-            # Mostrar resumen
             st.info(f"📊 Se generarán aproximadamente **{total_turnos}** turnos en **{dias_habiles}** días hábiles")
             
-            # Mostrar desglose
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("📅 Días hábiles", dias_habiles)
@@ -837,9 +838,6 @@ elif menu == "⏰ Disponibilidad":
         
         st.divider()
         
-        # ============================================
-        # FORMULARIO PARA GENERAR
-        # ============================================
         with st.form("generar_turnos_masivos"):
             confirmar = st.checkbox("✅ Confirmo que quiero generar estos turnos", value=False)
             
@@ -884,7 +882,7 @@ elif menu == "⏰ Disponibilidad":
                         if resultado["errores"]:
                             with st.expander(f"⚠️ Ver {len(resultado['errores'])} errores"):
                                 for error in resultado["errores"]:
-                                    st.code(error)    
+                                    st.code(error)
                         
                         if resultado["creados"] > 0:
                             st.rerun()
@@ -896,24 +894,24 @@ elif menu == "⏰ Disponibilidad":
         st.subheader("📊 Resumen de la agenda")
         
         try:
-            # Total de turnos disponibles
             response = supabase.table("turnos")\
                 .select("id_turno", count="exact")\
                 .eq("estado", "disponible")\
+                .is_("fecha_caducacion", "null")\
                 .execute()
             total_disponibles = response.count
             
-            # Turnos ocupados (con paciente asignado)
             response = supabase.table("turnos")\
                 .select("id_turno", count="exact")\
                 .eq("estado", "programado")\
+                .is_("fecha_caducacion", "null")\
                 .execute()
             total_programados = response.count
             
-            # Turnos realizados
             response = supabase.table("turnos")\
                 .select("id_turno", count="exact")\
                 .eq("estado", "realizado")\
+                .is_("fecha_caducacion", "null")\
                 .execute()
             total_realizados = response.count
             
@@ -925,12 +923,10 @@ elif menu == "⏰ Disponibilidad":
             with col3:
                 st.metric("✅ Realizados", total_realizados or 0)
             
-            # Gráfico simple de ocupación
             st.divider()
             st.subheader("📈 Ocupación")
-            
-            # Próximos 7 días
             st.caption("Próximos 7 días")
+            
             fechas = []
             disponibles = []
             ocupados = []
@@ -939,23 +935,22 @@ elif menu == "⏰ Disponibilidad":
                 fecha = date.today() + timedelta(days=i)
                 fechas.append(fecha.strftime("%d/%m"))
                 
-                # Contar disponibles
                 response = supabase.table("turnos")\
                     .select("id_turno", count="exact")\
                     .eq("fecha", fecha.isoformat())\
                     .eq("estado", "disponible")\
+                    .is_("fecha_caducacion", "null")\
                     .execute()
                 disponibles.append(response.count or 0)
                 
-                # Contar ocupados
                 response = supabase.table("turnos")\
                     .select("id_turno", count="exact")\
                     .eq("fecha", fecha.isoformat())\
                     .neq("estado", "disponible")\
+                    .is_("fecha_caducacion", "null")\
                     .execute()
                 ocupados.append(response.count or 0)
             
-            # Mostrar como tabla
             df_resumen = pd.DataFrame({
                 "Fecha": fechas,
                 "Disponibles": disponibles,
@@ -965,6 +960,7 @@ elif menu == "⏰ Disponibilidad":
             
         except Exception as e:
             st.error(f"❌ Error obteniendo resumen: {str(e)}")
+
 # ============================================
 # FOOTER
 # ============================================
