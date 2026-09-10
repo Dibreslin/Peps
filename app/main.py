@@ -532,13 +532,13 @@ elif menu == "⏰ Disponibilidad":
                 df = pd.DataFrame(response.data)
                 
                 # Mostrar los datos con st.write (más confiable)
-                st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
+                #st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
                 
                 # Usar dataframe con selección
                 df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
                 df_mostrar["fecha"] = pd.to_datetime(df_mostrar["fecha"]).dt.strftime("%Y-%m-%d")
                 
-                st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
+                #st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
                 
                 # Usar dataframe con selección
                 df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
