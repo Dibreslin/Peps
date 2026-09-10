@@ -14,20 +14,23 @@ st.set_page_config(
 # ============================================
 # CSS PERSONALIZADO - REDUCIR ESPACIOS
 # ============================================
+# ============================================
+# CSS PERSONALIZADO - REDUCIR ESPACIOS
+# ============================================
 st.markdown("""
 <style>
-    /* Reducir padding general */
+    /* Reducir padding general pero dejar espacio arriba */
     .block-container {
-        padding-top: 0.5rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 0.5rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
     }
     
     /* Reducir tamaño de títulos */
-    h1 { font-size: 1.3rem !important; margin-bottom: 0.2rem !important; }
-    h2 { font-size: 1.1rem !important; margin-bottom: 0.2rem !important; }
-    h3 { font-size: 0.95rem !important; margin-bottom: 0.1rem !important; }
+    h1 { font-size: 1.3rem !important; margin-top: 0.5rem !important; margin-bottom: 0.2rem !important; }
+    h2 { font-size: 1.1rem !important; margin-top: 0.3rem !important; margin-bottom: 0.2rem !important; }
+    h3 { font-size: 0.95rem !important; margin-top: 0.2rem !important; margin-bottom: 0.1rem !important; }
     
     /* Reducir espacio entre elementos */
     .stElementContainer { margin-bottom: 0.2rem !important; }
