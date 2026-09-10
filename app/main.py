@@ -578,6 +578,9 @@ elif menu == "⏰ Disponibilidad":
                         "estado": st.column_config.TextColumn("📌 Estado", width="small"),
                     }
                 )
+                # DIAGNÓSTICO DE SELECCIÓN
+                st.write(f"🔍 Event selection: {event.selection}")
+                st.write(f"🔍 Filas seleccionadas: {event.selection.rows if event.selection else 'None'}")
                 
                 st.caption(f"📊 Total: {len(df)} turnos")
                 
