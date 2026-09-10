@@ -79,7 +79,6 @@ def do_logout():
 def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
     """
     Cancela un turno y crea uno nuevo disponible en el mismo horario
-    Solo si la fecha/hora es futura
     """
     if not supabase:
         return {"error": "No hay conexión a Supabase"}
@@ -125,6 +124,10 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
         }
         
         supabase.table("turnos").insert(nuevo_turno).execute()
+        
+        # LIMPIAR EL ESTADO DE SESIÓN para evitar errores
+        if "turno_seleccionado" in st.session_state:
+            del st.session_state["turno_seleccionado"]
         
         return {
             "success": True,
@@ -553,7 +556,6 @@ elif menu == "⏰ Disponibilidad":
                             st.markdown("**🗑️ Cancelar turno**")
                             
                             if estado_actual in ["disponible", "programado", "confirmado"]:
-                                # Verificar si la fecha/hora ya pasó
                                 try:
                                     fecha_hora_turno = datetime.combine(
                                         datetime.strptime(turno_data["fecha"], "%Y-%m-%d").date(),
@@ -564,7 +566,7 @@ elif menu == "⏰ Disponibilidad":
                                     es_futuro = True
                                 
                                 if es_futuro:
-                                    motivo = st.text_input("Motivo de cancelación (opcional)", key="motivo_cancelacion")
+                                    motivo = st.text_input("Motivo de cancelación (opcional)", key="motivo_cancelacion_acciones")
                                     
                                     if st.button("🗑️ Cancelar y liberar horario", type="secondary", key="btn_cancelar_acciones"):
                                         with st.spinner("🔄 Cancelando turno..."):
@@ -577,11 +579,12 @@ elif menu == "⏰ Disponibilidad":
                                             st.error(f"❌ {resultado['error']}")
                                         else:
                                             st.success(f"✅ {resultado['message']}")
+                                            # Forzar rerun para limpiar la selección
                                             st.rerun()
                                 else:
                                     st.info("🔒 Este turno ya pasó y no se puede cancelar")
                             else:
-                                st.info(f"🔒 Este turno está {estado_actual} y no se puede cancelar")
+                                st.info(f"🔒 Turno {estado_actual} no se puede cancelar")
                         
                         with col3:
                             st.markdown("**👤 Asignar paciente**")
