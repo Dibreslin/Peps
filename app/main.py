@@ -555,6 +555,12 @@ elif menu == "⏰ Disponibilidad":
                 df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
                 df_mostrar["fecha"] = pd.to_datetime(df_mostrar["fecha"]).dt.strftime("%Y-%m-%d")
                 
+                st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
+                
+                # Usar dataframe con selección
+                df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
+                df_mostrar["fecha"] = pd.to_datetime(df_mostrar["fecha"]).dt.strftime("%Y-%m-%d")
+                
                 event = st.dataframe(
                     df_mostrar,
                     use_container_width=True,
@@ -563,7 +569,7 @@ elif menu == "⏰ Disponibilidad":
                     selection_mode="single-row",
                     key="tabla_turnos",
                     column_config={
-                        "id_turno": None,  # Ocultar columna ID
+                        "id_turno": None,
                         "fecha": st.column_config.TextColumn("📅 Fecha", width="small"),
                         "hora_inicio": st.column_config.TextColumn("🕐 Inicio", width="small"),
                         "hora_fin": st.column_config.TextColumn("🕐 Fin", width="small"),
@@ -574,12 +580,16 @@ elif menu == "⏰ Disponibilidad":
                 st.caption(f"📊 Total: {len(df)} turnos")
                 
                 # Obtener turno seleccionado desde la grilla
-                turno_desde_grilla = None
                 if event.selection and event.selection.rows:
                     idx = event.selection.rows[0]
-                    turno_desde_grilla = df_mostrar.iloc[idx]["id_turno"]                
+                    turno_desde_grilla = df_mostrar.iloc[idx]["id_turno"]
+                    # GUARDAR EN SESSION_STATE
+                    st.session_state["turno_seleccionado_id"] = turno_desde_grilla
+                else:
+                    turno_desde_grilla = st.session_state.get("turno_seleccionado_id", None)
+                
                 # ============================================
-                # SECCIÓN DE ACCIONES (COMPLETA)
+                # SECCIÓN DE ACCIONES
                 # ============================================
                 st.divider()
                 st.subheader("🔧 Acciones sobre turnos")
@@ -592,24 +602,27 @@ elif menu == "⏰ Disponibilidad":
                     })
                 
                 if turnos_opciones:
-                     # Determinar qué turno está seleccionado
-                    if turno_desde_grilla:
-                        # Buscar el índice del turno seleccionado en la grilla
-                        opciones_ids = [op["id"] for op in turnos_opciones]
-                        if turno_desde_grilla in opciones_ids:
-                            idx_seleccionado = opciones_ids.index(turno_desde_grilla)
-                        else:
-                            idx_seleccionado = 0
+                    # Determinar el índice del turno seleccionado desde la grilla
+                    opciones_ids = [op["id"] for op in turnos_opciones]
+                    turno_guardado = st.session_state.get("turno_seleccionado_id", None)
+                    
+                    if turno_guardado and turno_guardado in opciones_ids:
+                        idx_default = opciones_ids.index(turno_guardado)
                     else:
-                        idx_seleccionado = 0
+                        idx_default = 0
                     
                     turno_seleccionado = st.selectbox(
                         "Seleccioná un turno para modificar",
                         options=turnos_opciones,
                         format_func=lambda x: x["label"],
-                        index=idx_seleccionado,
+                        index=idx_default,
                         key="turno_seleccionado_acciones"
-                    )                   
+                    )
+                    
+                    # Sincronizar la selección del selectbox con session_state
+                    if turno_seleccionado:
+                        st.session_state["turno_seleccionado_id"] = turno_seleccionado["id"]
+                    
                     if turno_seleccionado:
                         # Buscar el turno en el DataFrame
                         turno_data_filtrado = df[df["id_turno"] == turno_seleccionado["id"]]
