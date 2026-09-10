@@ -512,11 +512,17 @@ elif menu == "⏰ Disponibilidad":
                     )
                     
                     if turno_seleccionado:
-                        turno_data = df[df["id_turno"] == turno_seleccionado["id"]].iloc[0]
+                        # Buscar el turno en el DataFrame
+                        turno_data_filtrado = df[df["id_turno"] == turno_seleccionado["id"]]
+                        
+                        if turno_data_filtrado.empty:
+                            st.warning("⚠️ El turno seleccionado ya no está disponible. Actualizando la lista...")
+                            st.stop()
+                        
+                        turno_data = turno_data_filtrado.iloc[0]
                         estado_actual = turno_data["estado"]
                         
-                        col1, col2, col3 = st.columns(3)
-                        
+                        col1, col2, col3 = st.columns(3)                        
                         with col1:
                             st.markdown("**🔄 Cambiar estado**")
                             
