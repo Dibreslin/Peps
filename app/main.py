@@ -705,6 +705,9 @@ elif menu == "⏰ Disponibilidad":
                                             st.error(f"❌ {resultado['error']}")
                                         else:
                                             st.success(f"✅ {resultado['message']}")
+                                            # LIMPIAR SELECCIÓN DE LA GRILLA
+                                            st.session_state["turno_seleccionado_id"] = None
+                                            st.session_state.contador_grilla += 1
                                             st.rerun()
                                 else:
                                     st.info("🔒 Este turno ya pasó y no se puede cancelar")
