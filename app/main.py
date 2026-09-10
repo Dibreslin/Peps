@@ -86,6 +86,8 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 if "contador_seleccion" not in st.session_state:
     st.session_state.contador_seleccion = 0
+if "contador_grilla" not in st.session_state:
+    st.session_state.contador_grilla = 0
 
 # ============================================
 # CONEXIÓN A SUPABASE
@@ -563,6 +565,7 @@ elif menu == "⏰ Disponibilidad":
                 df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
                 df_mostrar["fecha"] = pd.to_datetime(df_mostrar["fecha"]).dt.strftime("%Y-%m-%d")
                 
+                # Mostrar la grilla con selección
                 event = st.dataframe(
                     df_mostrar,
                     use_container_width=True,
@@ -572,29 +575,24 @@ elif menu == "⏰ Disponibilidad":
                     key="tabla_turnos",
                     column_config={
                         "id_turno": None,
-                        "fecha": st.column_config.TextColumn("📅 Fecha", width="small"),
-                        "hora_inicio": st.column_config.TextColumn("🕐 Inicio", width="small"),
-                        "hora_fin": st.column_config.TextColumn("🕐 Fin", width="small"),
-                        "estado": st.column_config.TextColumn("📌 Estado", width="small"),
+                        "fecha": "📅 Fecha",
+                        "hora_inicio": "🕐 Inicio",
+                        "hora_fin": "🕐 Fin",
+                        "estado": "📌 Estado"
                     }
                 )
-                # DIAGNÓSTICO DE SELECCIÓN
-                st.write(f"🔍 Event selection: {event.selection}")
-                st.write(f"🔍 Filas seleccionadas: {event.selection.rows if event.selection else 'None'}")
                 
                 st.caption(f"📊 Total: {len(df)} turnos")
                 
-                # Obtener turno seleccionado desde la grilla
+                # Procesar selección de la grilla
                 if event.selection and event.selection.rows:
                     idx = event.selection.rows[0]
                     turno_desde_grilla = df_mostrar.iloc[idx]["id_turno"]
                     
-                    # Si cambió la selección, incrementar contador
                     if st.session_state.get("turno_seleccionado_id") != turno_desde_grilla:
                         st.session_state["turno_seleccionado_id"] = turno_desde_grilla
-                        st.session_state.contador_seleccion += 1
-                else:
-                    turno_desde_grilla = st.session_state.get("turno_seleccionado_id", None)                
+                        st.session_state.contador_grilla += 1
+                
                 # ============================================
                 # SECCIÓN DE ACCIONES
                 # ============================================
@@ -609,7 +607,10 @@ elif menu == "⏰ Disponibilidad":
                     })
                 
                 if turnos_opciones:
-                    # Determinar el índice del turno seleccionado desde la grilla
+                    # Key dinámica
+                    key_dinamica = f"turno_seleccionado_acciones_{st.session_state.contador_grilla}"
+                    
+                    # Determinar índice del turno seleccionado
                     opciones_ids = [op["id"] for op in turnos_opciones]
                     turno_guardado = st.session_state.get("turno_seleccionado_id", None)
                     
@@ -623,10 +624,10 @@ elif menu == "⏰ Disponibilidad":
                         options=turnos_opciones,
                         format_func=lambda x: x["label"],
                         index=idx_default,
-                        key="turno_seleccionado_acciones"
+                        key=key_dinamica
                     )
                     
-                    # Sincronizar la selección del selectbox con session_state
+                     # Sincronizar la selección del selectbox con session_state
                     if turno_seleccionado:
                         st.session_state["turno_seleccionado_id"] = turno_seleccionado["id"]
                     
