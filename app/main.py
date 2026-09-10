@@ -11,7 +11,70 @@ st.set_page_config(
     page_icon="🧠",
     layout="wide"
 )
-
+# ============================================
+# CSS PERSONALIZADO - REDUCIR ESPACIOS
+# ============================================
+st.markdown("""
+<style>
+    /* Reducir padding general */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }
+    
+    /* Reducir espacio entre elementos */
+    .stElementContainer {
+        margin-bottom: 0.3rem !important;
+    }
+    
+    /* Reducir tamaño de títulos */
+    h1 {
+        font-size: 1.5rem !important;
+        margin-bottom: 0.3rem !important;
+    }
+    h2 {
+        font-size: 1.2rem !important;
+        margin-bottom: 0.3rem !important;
+    }
+    h3 {
+        font-size: 1rem !important;
+        margin-bottom: 0.2rem !important;
+    }
+    
+    /* Reducir padding de tablas */
+    .stDataFrame {
+        font-size: 0.85rem !important;
+    }
+    
+    /* Reducir espacio en métricas */
+    .stMetric {
+        padding: 0.3rem !important;
+    }
+    
+    /* Reducir espacio en formularios */
+    .stForm {
+        padding: 0.5rem !important;
+    }
+    
+    /* Reducir espacio en la barra lateral */
+    section[data-testid="stSidebar"] {
+        padding-top: 1rem !important;
+    }
+    
+    /* Reducir espacio entre columnas */
+    .stColumns {
+        gap: 0.5rem !important;
+    }
+    
+    /* Reducir espacio en divider */
+    hr {
+        margin-top: 0.5rem !important;
+        margin-bottom: 0.5rem !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 # ============================================
 # INICIALIZACIÓN
 # ============================================
@@ -486,10 +549,35 @@ elif menu == "⏰ Disponibilidad":
                 df = pd.DataFrame(response.data)
                 
                 # Mostrar los datos con st.write (más confiable)
-                st.subheader("📋 Lista de turnos")
-                st.write(df[["fecha", "hora_inicio", "hora_fin", "estado"]])
+                st.subheader("📋 Lista de turnos (hacé click en una fila para seleccionarla)")
+                
+                # Usar dataframe con selección
+                df_mostrar = df[["id_turno", "fecha", "hora_inicio", "hora_fin", "estado"]].copy()
+                df_mostrar["fecha"] = pd.to_datetime(df_mostrar["fecha"]).dt.strftime("%Y-%m-%d")
+                
+                event = st.dataframe(
+                    df_mostrar,
+                    use_container_width=True,
+                    hide_index=True,
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key="tabla_turnos",
+                    column_config={
+                        "id_turno": None,  # Ocultar columna ID
+                        "fecha": st.column_config.TextColumn("📅 Fecha", width="small"),
+                        "hora_inicio": st.column_config.TextColumn("🕐 Inicio", width="small"),
+                        "hora_fin": st.column_config.TextColumn("🕐 Fin", width="small"),
+                        "estado": st.column_config.TextColumn("📌 Estado", width="small"),
+                    }
+                )
+                
                 st.caption(f"📊 Total: {len(df)} turnos")
                 
+                # Obtener turno seleccionado desde la grilla
+                turno_desde_grilla = None
+                if event.selection and event.selection.rows:
+                    idx = event.selection.rows[0]
+                    turno_desde_grilla = df_mostrar.iloc[idx]["id_turno"]                
                 # ============================================
                 # SECCIÓN DE ACCIONES (COMPLETA)
                 # ============================================
@@ -504,19 +592,29 @@ elif menu == "⏰ Disponibilidad":
                     })
                 
                 if turnos_opciones:
+                     # Determinar qué turno está seleccionado
+                    if turno_desde_grilla:
+                        # Buscar el índice del turno seleccionado en la grilla
+                        opciones_ids = [op["id"] for op in turnos_opciones]
+                        if turno_desde_grilla in opciones_ids:
+                            idx_seleccionado = opciones_ids.index(turno_desde_grilla)
+                        else:
+                            idx_seleccionado = 0
+                    else:
+                        idx_seleccionado = 0
+                    
                     turno_seleccionado = st.selectbox(
                         "Seleccioná un turno para modificar",
                         options=turnos_opciones,
                         format_func=lambda x: x["label"],
+                        index=idx_seleccionado,
                         key="turno_seleccionado_acciones"
-                    )
-                    
+                    )                   
                     if turno_seleccionado:
                         # Buscar el turno en el DataFrame
                         turno_data_filtrado = df[df["id_turno"] == turno_seleccionado["id"]]
                         
                         if turno_data_filtrado.empty:
-                            st.warning("⚠️ El turno seleccionado ya no está disponible. Actualizando la lista...")
                             st.stop()
                         
                         turno_data = turno_data_filtrado.iloc[0]
