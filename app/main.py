@@ -84,6 +84,8 @@ if "user" not in st.session_state:
     st.session_state.user = None
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
+if "contador_seleccion" not in st.session_state:
+    st.session_state.contador_seleccion = 0
 
 # ============================================
 # CONEXIÓN A SUPABASE
@@ -583,11 +585,13 @@ elif menu == "⏰ Disponibilidad":
                 if event.selection and event.selection.rows:
                     idx = event.selection.rows[0]
                     turno_desde_grilla = df_mostrar.iloc[idx]["id_turno"]
-                    # GUARDAR EN SESSION_STATE
-                    st.session_state["turno_seleccionado_id"] = turno_desde_grilla
+                    
+                    # Si cambió la selección, incrementar contador
+                    if st.session_state.get("turno_seleccionado_id") != turno_desde_grilla:
+                        st.session_state["turno_seleccionado_id"] = turno_desde_grilla
+                        st.session_state.contador_seleccion += 1
                 else:
-                    turno_desde_grilla = st.session_state.get("turno_seleccionado_id", None)
-                
+                    turno_desde_grilla = st.session_state.get("turno_seleccionado_id", None)                
                 # ============================================
                 # SECCIÓN DE ACCIONES
                 # ============================================
