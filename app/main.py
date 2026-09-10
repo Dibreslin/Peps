@@ -506,7 +506,7 @@ elif menu == "⏰ Disponibilidad":
             response = query.execute()
             
             # DIAGNÓSTICO
-            st.write(f"🔍 Turnos encontrados: {len(response.data) if response.data else 0}")
+            # st.write(f"🔍 Turnos encontrados: {len(response.data) if response.data else 0}")
             # ============================================
             # DIAGNÓSTICO DE DATOS
             # ============================================
