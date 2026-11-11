@@ -50,16 +50,27 @@ if "contador_seleccion" not in st.session_state:
 if "contador_grilla" not in st.session_state:
     st.session_state.contador_grilla = 0
 
+
 # ============================================
-# CONEXIÓN A SUPABASE
+# CONEXIÓN A SUPABASE POR SESIÓN
 # ============================================
 try:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    # Cada sesión de Streamlit mantiene su propio cliente.
+    if "supabase_client" not in st.session_state:
+        st.session_state.supabase_client = create_client(
+            SUPABASE_URL,
+            SUPABASE_KEY
+        )
+
+    supabase = st.session_state.supabase_client
+
 except Exception as e:
     st.error(f"❌ Error de conexión: {str(e)}")
     st.stop()
+
 
 # ============================================
 # FUNCIÓN PARA OBTENER ID DE ORGANIZACIÓN
@@ -145,31 +156,48 @@ def eliminar_logico(tabla, campo_id, valor_id):
     except Exception as e:
         raise e
 
+
 # ============================================
 # FUNCIONES DE AUTENTICACIÓN
 # ============================================
+
 def do_login(email, password):
     try:
         response = supabase.auth.sign_in_with_password({
             "email": email,
             "password": password
         })
-        if response.user:
+
+        if response.user and response.session:
             st.session_state.authenticated = True
-            st.session_state.user = email
-            st.session_state.user_name = email.split("@")[0].capitalize()
+            st.session_state.user = response.user.email
+            st.session_state.auth_user_id = response.user.id
+            st.session_state.user_name = (
+                response.user.email.split("@")[0].capitalize()
+            )
             return True
+
+        return False
+
     except Exception as e:
         st.error(f"❌ Error de login: {str(e)}")
         return False
-    return False
+
 
 def do_logout():
-    if supabase:
+    try:
         supabase.auth.sign_out()
+    except Exception as e:
+        st.warning(f"No se pudo cerrar la sesión de Auth: {str(e)}")
+
     st.session_state.authenticated = False
     st.session_state.user = None
+    st.session_state.auth_user_id = None
     st.session_state.user_name = ""
+
+    # Descartar el cliente para evitar reutilizar su estado.
+    st.session_state.pop("supabase_client", None)
+
     st.rerun()
 
 # ============================================
