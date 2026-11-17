@@ -88,20 +88,81 @@ def get_org_id():
 # FUNCIONES DE AUDITORÍA
 # ============================================
 
-def get_usuario_actual():
-    """Obtiene el ID del usuario actual desde la sesión"""
+
+def get_contexto_usuario():
+    """
+    Identifica al usuario autenticado y obtiene su contexto interno.
+    No utiliza el email como mecanismo de identificación.
+    """
     try:
-        if "user" not in st.session_state or not st.session_state.user:
+        auth_user_id = st.session_state.get("auth_user_id")
+
+        if not st.session_state.get("authenticated") or not auth_user_id:
             return None
-        
-        email = st.session_state.user
-        
-        response = supabase.table("usuarios").select("id_usuario").eq("email", email).execute()
-        if response.data:
-            return response.data[0]["id_usuario"]
-        return None
+
+        response = (
+            supabase.table("usuarios")
+            .select(
+                "id_usuario, id_organizacion, email, nombre, apellido, rol"
+            )
+            .eq("auth_user_id", auth_user_id)
+            .is_("fecha_caducacion", "null")
+            .execute()
+        )
+
+        if len(response.data) != 1:
+            return None
+
+        usuario = response.data[0]
+
+        contexto = {
+            "id_usuario": usuario["id_usuario"],
+            "id_organizacion": usuario["id_organizacion"],
+            "email": usuario["email"],
+            "nombre": usuario["nombre"],
+            "apellido": usuario["apellido"],
+            "rol": usuario["rol"],
+            "id_profesional": None
+        }
+
+        if usuario["rol"] == "profesional":
+            profesional = (
+                supabase.table("profesionales")
+                .select("id_profesional")
+                .eq("id_usuario", usuario["id_usuario"])
+                .eq("id_organizacion", usuario["id_organizacion"])
+                .is_("fecha_caducacion", "null")
+                .execute()
+            )
+
+            if len(profesional.data) != 1:
+                return None
+
+            contexto["id_profesional"] = (
+                profesional.data[0]["id_profesional"]
+            )
+
+        elif usuario["rol"] != "admin":
+            return None
+
+        return contexto
+
     except Exception as e:
+        st.error(f"Error identificando al usuario: {str(e)}")
         return None
+
+
+def get_usuario_actual():
+    """Obtiene el ID interno del usuario autenticado."""
+    contexto = get_contexto_usuario()
+    return contexto["id_usuario"] if contexto else None
+
+
+def get_org_id():
+    """Obtiene la organización del usuario autenticado."""
+    contexto = get_contexto_usuario()
+    return contexto["id_organizacion"] if contexto else None
+
 
 
 def insertar_con_auditoria(tabla, data):
