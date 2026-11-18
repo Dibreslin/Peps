@@ -266,6 +266,9 @@ def do_logout():
 
     st.rerun()
 
+#=== prueba
+if st.button("Probar autenticación Supabase"):
+    st.info(probar_autenticacion_supabase())
 # ============================================
 # FUNCIÓN cancelar_turno_y_reprogramar
 # ============================================
@@ -1009,3 +1012,32 @@ elif menu == "⏰ Disponibilidad":
 # ============================================
 st.divider()
 st.caption("🧠 PEP'S - Sistema de Gestión para Consultorios v2.0")
+
+
+
+
+
+
+
+def probar_autenticacion_supabase():
+    try:
+        response = supabase.rpc(
+            "cancelar_turno_profesional",
+            {
+                "p_turno_id": "00000000-0000-0000-0000-000000000000",
+                "p_motivo": "Prueba de autenticación"
+            }
+        ).execute()
+
+        return "Respuesta inesperada: la función se ejecutó."
+
+    except Exception as e:
+        error = str(e)
+
+        if "El turno no existe" in error or "no pertenece al profesional" in error:
+            return "OK: Supabase reconoce al profesional autenticado."
+
+        if "Usuario profesional no autenticado" in error:
+            return "ERROR: Supabase no está recibiendo la identidad del usuario."
+
+        return f"Otro resultado: {error}"
