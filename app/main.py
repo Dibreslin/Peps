@@ -269,72 +269,44 @@ def do_logout():
 # ============================================
 # FUNCIÓN cancelar_turno_y_reprogramar
 # ============================================
-def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
+
+def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por el profesional"):
     """
-    Cancela un turno y crea uno nuevo disponible en el mismo horario
+    Cancela un turno y libera su horario mediante una operación
+    transaccional en Supabase.
     """
-    if not supabase:
-        return {"error": "No hay conexión a Supabase"}
-    
     try:
-        # Obtener el turno
-        response = supabase.table("turnos").select("*").eq("id_turno", turno_id).execute()
-        if not response.data:
-            return {"error": "El turno no existe"}
-        
-        turno = response.data[0]
-        
-        # Verificar si la fecha/hora ya pasó
-        fecha_hora_turno = datetime.combine(
-            datetime.strptime(turno["fecha"], "%Y-%m-%d").date(),
-            datetime.strptime(turno["hora_inicio"], "%H:%M:%S").time()
-        )
-        
-        if fecha_hora_turno < datetime.now():
-            return {"error": "No se puede cancelar un turno con fecha/hora anterior a la actual"}
-        
-        # 1. Marcar el turno original como cancelado (histórico)
-        data_cancelacion = {
-            "estado": "cancelado",
-            "fecha_caducacion": datetime.now().isoformat(),
-            "motivo_cancelacion": motivo
-        }
-        
-        usuario_id = get_usuario_actual()
-        if usuario_id:
-            data_cancelacion["usuario_caducacion"] = usuario_id
-        
-        supabase.table("turnos")\
-            .update(data_cancelacion)\
-            .eq("id_turno", turno_id)\
-            .execute()
-        
-        # 2. Crear un nuevo turno en el mismo horario (disponible)
-        nuevo_turno = {
-            "id_profesional": turno["id_profesional"],
-            "id_organizacion": turno["id_organizacion"],
-            "fecha": turno["fecha"],
-            "hora_inicio": turno["hora_inicio"],
-            "hora_fin": turno["hora_fin"],
-            "duracion_minutos": turno["duracion_minutos"],
-            "estado": "disponible",
-            "origen": "reprogramacion"
-        }
-        
-        insertar_con_auditoria("turnos", nuevo_turno)
-        
-        # LIMPIAR EL ESTADO DE SESIÓN para evitar errores
-        if "turno_seleccionado" in st.session_state:
-            del st.session_state["turno_seleccionado"]
-        
-        return {
-            "success": True,
-            "message": "Turno cancelado y reemplazado por uno disponible",
-            "turno_original": turno_id
-        }
-        
+        contexto = get_contexto_usuario()
+
+        if not contexto or contexto["rol"] != "profesional":
+            return {"error": "No hay un profesional autenticado"}
+
+        response = supabase.rpc(
+            "cancelar_turno_profesional",
+            {
+                "p_turno_id": str(turno_id),
+                "p_motivo": motivo
+            }
+        ).execute()
+
+        resultado = response.data
+
+        if isinstance(resultado, dict) and resultado.get("success"):
+            st.session_state.pop("turno_seleccionado", None)
+
+            return {
+                "success": True,
+                "message": "Turno cancelado y horario liberado correctamente",
+                "turno_original": resultado["turno_original"],
+                "nuevo_turno": resultado["nuevo_turno"],
+                "cancelacion_tardia": resultado["cancelacion_tardia"]
+            }
+
+        return {"error": "Supabase no confirmó la cancelación"}
+
     except Exception as e:
         return {"error": str(e)}
+
 
 
 # ============================================
