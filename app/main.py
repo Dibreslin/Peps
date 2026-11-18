@@ -266,9 +266,7 @@ def do_logout():
 
     st.rerun()
 
-#=== prueba
-if st.button("Probar autenticación Supabase"):
-    st.info(probar_autenticacion_supabase())
+
 # ============================================
 # FUNCIÓN cancelar_turno_y_reprogramar
 # ============================================
@@ -419,21 +417,43 @@ if not st.session_state.authenticated:
     st.caption("📝 Usuario: admin@peps.com | Contraseña: admin123")
     st.stop()
 
+
 # ============================================
 # MENÚ PRINCIPAL
 # ============================================
+contexto = get_contexto_usuario()
+
+if not contexto:
+    st.error("No se pudo validar el usuario o su cuenta.")
+    st.stop()
+
 st.sidebar.title("🧠 PEP'S")
 st.sidebar.divider()
 st.sidebar.write(f"👋 **{st.session_state.user_name}**")
 st.sidebar.caption(f"📧 {st.session_state.user}")
+st.sidebar.caption(f"Rol: {contexto['rol'].capitalize()}")
 st.sidebar.divider()
 
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
     do_logout()
 
+if contexto["rol"] == "profesional":
+    opciones_menu = [
+        "📅 Dashboard",
+        "👤 Pacientes",
+        "📆 Turnos",
+        "💰 Pagos",
+        "🏥 Obras Sociales",
+        "⏰ Disponibilidad"
+    ]
+else:
+    opciones_menu = [
+        "📊 Administración"
+    ]
+
 menu = st.sidebar.radio(
     "📋 Navegación",
-    ["📅 Dashboard", "👤 Pacientes", "📆 Turnos", "💰 Pagos", "🏥 Obras Sociales", "⏰ Disponibilidad"],
+    opciones_menu,
     index=0
 )
 
@@ -1013,31 +1033,3 @@ elif menu == "⏰ Disponibilidad":
 st.divider()
 st.caption("🧠 PEP'S - Sistema de Gestión para Consultorios v2.0")
 
-
-
-
-
-
-
-def probar_autenticacion_supabase():
-    try:
-        response = supabase.rpc(
-            "cancelar_turno_profesional",
-            {
-                "p_turno_id": "00000000-0000-0000-0000-000000000000",
-                "p_motivo": "Prueba de autenticación"
-            }
-        ).execute()
-
-        return "Respuesta inesperada: la función se ejecutó."
-
-    except Exception as e:
-        error = str(e)
-
-        if "El turno no existe" in error or "no pertenece al profesional" in error:
-            return "OK: Supabase reconoce al profesional autenticado."
-
-        if "Usuario profesional no autenticado" in error:
-            return "ERROR: Supabase no está recibiendo la identidad del usuario."
-
-        return f"Otro resultado: {error}"
