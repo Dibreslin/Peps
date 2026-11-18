@@ -165,19 +165,24 @@ def get_org_id():
 
 
 
+
 def insertar_con_auditoria(tabla, data):
     """
-    Inserta un registro agregando automáticamente fecha_alta y usuario_alta
+    Inserta un registro agregando fecha_alta y usuario_alta.
     """
     try:
-        data["fecha_alta"] = datetime.now().isoformat()
-        
-        usuario_id = get_usuario_actual()
-        if usuario_id:
-            data["usuario_alta"] = usuario_id
-        
-        response = supabase.table(tabla).insert(data).execute()
+        contexto = get_contexto_usuario()
+
+        if not contexto:
+            raise Exception("No se pudo identificar al usuario autenticado.")
+
+        datos_insertar = data.copy()
+        datos_insertar["fecha_alta"] = datetime.now().isoformat()
+        datos_insertar["usuario_alta"] = contexto["id_usuario"]
+
+        response = supabase.table(tabla).insert(datos_insertar).execute()
         return response
+
     except Exception as e:
         raise e
 
@@ -331,120 +336,94 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por usuario"):
     except Exception as e:
         return {"error": str(e)}
 
+
 # ============================================
 # FUNCIONES PARA OBTENER DATOS
 # ============================================
+
 def get_pacientes():
+    """Obtiene únicamente los pacientes de la cuenta del profesional."""
     try:
-        response = obtener_activos("pacientes")
-        if response.data:
-            return pd.DataFrame(response.data)
-        return pd.DataFrame()
+        contexto = get_contexto_usuario()
+
+        if not contexto or contexto["rol"] != "profesional":
+            return pd.DataFrame()
+
+        response = (
+            supabase.table("pacientes")
+            .select("*")
+            .eq("id_organizacion", contexto["id_organizacion"])
+            .is_("fecha_caducacion", "null")
+            .order("apellido")
+            .execute()
+        )
+
+        return pd.DataFrame(response.data) if response.data else pd.DataFrame()
+
     except Exception as e:
+        st.error(f"Error al obtener pacientes: {str(e)}")
         return pd.DataFrame()
 
+
 def get_turnos_hoy():
+    """Obtiene los turnos del día del profesional autenticado."""
     try:
+        contexto = get_contexto_usuario()
+
+        if not contexto or contexto["rol"] != "profesional":
+            return pd.DataFrame()
+
         hoy = date.today().strftime("%Y-%m-%d")
-        response = supabase.table("turnos")\
-            .select("*, pacientes(nombre, apellido)")\
-            .eq("fecha", hoy)\
-            .is_("fecha_caducacion", "null")\
+
+        response = (
+            supabase.table("turnos")
+            .select("*, pacientes(nombre, apellido)")
+            .eq("id_organizacion", contexto["id_organizacion"])
+            .eq("id_profesional", contexto["id_profesional"])
+            .eq("fecha", hoy)
+            .is_("fecha_caducacion", "null")
             .execute()
+        )
+
         if response.data:
             df = pd.DataFrame(response.data)
             df["paciente_nombre"] = df["pacientes"].apply(
-                lambda x: f"{x['nombre']} {x['apellido']}" if x else "Sin asignar"
+                lambda x: (
+                    f"{x['nombre']} {x['apellido']}"
+                    if isinstance(x, dict) and x
+                    else "Sin asignar"
+                )
             )
             return df
+
         return pd.DataFrame()
+
     except Exception as e:
+        st.error(f"Error al obtener turnos de hoy: {str(e)}")
         return pd.DataFrame()
+
 
 def get_disponibilidades():
+    """Obtiene las disponibilidades del profesional autenticado."""
     try:
-        response = obtener_activos("disponibilidades")
-        if response.data:
-            return pd.DataFrame(response.data)
-        return pd.DataFrame()
-    except Exception as e:
-        return pd.DataFrame()
+        contexto = get_contexto_usuario()
 
-def generar_turnos_masivos(profesional_id, org_id, dias_seleccionados, hora_inicio, hora_fin, duracion, fecha_desde, fecha_hasta):
-    """
-    Genera turnos automáticamente para un rango de fechas
-    """
-    if not supabase:
-        return {"error": "No hay conexión a Supabase"}
-    
-    try:
-        turnos_creados = 0
-        turnos_existentes = 0
-        errores = []
-        
-        # Convertir días seleccionados a lista de números
-        dias_numeros = []
-        for dia in dias_seleccionados:
-            if dia == "Lunes": dias_numeros.append(0)
-            elif dia == "Martes": dias_numeros.append(1)
-            elif dia == "Miércoles": dias_numeros.append(2)
-            elif dia == "Jueves": dias_numeros.append(3)
-            elif dia == "Viernes": dias_numeros.append(4)
-            elif dia == "Sábado": dias_numeros.append(5)
-            elif dia == "Domingo": dias_numeros.append(6)
-        
-        # Generar fechas
-        fecha_actual = fecha_desde
-        delta = timedelta(days=1)
-        
-        while fecha_actual <= fecha_hasta:
-            if fecha_actual.weekday() in dias_numeros:
-                hora_actual = datetime.combine(fecha_actual, hora_inicio)
-                hora_final = datetime.combine(fecha_actual, hora_fin)
-                
-                while hora_actual + timedelta(minutes=duracion) <= hora_final:
-                    hora_fin_turno = hora_actual + timedelta(minutes=duracion)
-                    
-                    try:
-                        # Verificar si el turno ya existe
-                        check = supabase.table("turnos")\
-                            .select("id_turno")\
-                            .eq("id_profesional", profesional_id)\
-                            .eq("fecha", fecha_actual.strftime("%Y-%m-%d"))\
-                            .eq("hora_inicio", hora_actual.time().strftime("%H:%M:%S"))\
-                            .is_("fecha_caducacion", "null")\
-                            .execute()
-                        
-                        if not check.data:
-                            # Crear turno
-                            data = {
-                                "id_profesional": profesional_id,
-                                "id_organizacion": org_id,
-                                "fecha": fecha_actual.strftime("%Y-%m-%d"),
-                                "hora_inicio": hora_actual.time().strftime("%H:%M:%S"),
-                                "hora_fin": hora_fin_turno.time().strftime("%H:%M:%S"),
-                                "duracion_minutos": duracion,
-                                "estado": "disponible"
-                            }
-                            insertar_con_auditoria("turnos", data)
-                            turnos_creados += 1
-                        else:
-                            turnos_existentes += 1
-                    except Exception as e:
-                        errores.append(f"{fecha_actual} {hora_actual.time()}: {str(e)}")
-                    
-                    hora_actual = hora_fin_turno
-            
-            fecha_actual += delta
-        
-        return {
-            "creados": turnos_creados,
-            "existentes": turnos_existentes,
-            "errores": errores[:10]
-        }
-        
+        if not contexto or contexto["rol"] != "profesional":
+            return pd.DataFrame()
+
+        response = (
+            supabase.table("disponibilidades")
+            .select("*")
+            .eq("id_profesional", contexto["id_profesional"])
+            .is_("fecha_caducacion", "null")
+            .execute()
+        )
+
+        return pd.DataFrame(response.data) if response.data else pd.DataFrame()
+
     except Exception as e:
-        return {"error": str(e)}
+        st.error(f"Error al obtener disponibilidades: {str(e)}")
+        return pd.DataFrame()
 
 # ============================================
 # LOGIN
