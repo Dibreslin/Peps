@@ -72,17 +72,6 @@ except Exception as e:
     st.stop()
 
 
-# ============================================
-# FUNCIÓN PARA OBTENER ID DE ORGANIZACIÓN
-# ============================================
-def get_org_id():
-    try:
-        response = supabase.table("organizaciones").select("id_organizacion").limit(1).execute()
-        if response.data:
-            return response.data[0]["id_organizacion"]
-        return None
-    except Exception as e:
-        return None
 
 # ============================================
 # FUNCIONES DE AUDITORÍA
@@ -310,12 +299,100 @@ def cancelar_turno_y_reprogramar(turno_id, motivo="Cancelado por el profesional"
 
 
 
+
+
+def generar_turnos_masivos(
+    profesional_id, org_id, dias_seleccionados,
+    hora_inicio, hora_fin, duracion,
+    fecha_desde, fecha_hasta
+):
+    """
+    Genera horarios disponibles para el profesional autenticado.
+    Evita superposiciones con turnos ya existentes.
+    """
+    contexto = get_contexto_usuario()
+    if not contexto or contexto["rol"] != "profesional":
+        return {"error": "Solo un profesional autenticado puede generar horarios."}
+
+    if (str(profesional_id) != str(contexto["id_profesional"]) or
+            str(org_id) != str(contexto["id_organizacion"])):
+        return {"error": "El profesional o consultorio no coincide con la sesión."}
+
+    if duracion <= 0 or hora_inicio >= hora_fin or fecha_desde > fecha_hasta:
+        return {"error": "Los parámetros de generación no son válidos."}
+
+    dias_map = {
+        "Lunes": 0, "Martes": 1, "Miércoles": 2, "Jueves": 3,
+        "Viernes": 4, "Sábado": 5, "Domingo": 6
+    }
+    dias_numeros = {dias_map[d] for d in dias_seleccionados if d in dias_map}
+    creados = 0
+    existentes = 0
+    errores = []
+
+    fecha_actual = fecha_desde
+    while fecha_actual <= fecha_hasta:
+        if fecha_actual.weekday() in dias_numeros:
+            inicio_dt = datetime.combine(fecha_actual, hora_inicio)
+            fin_dt = datetime.combine(fecha_actual, hora_fin)
+
+            while inicio_dt + timedelta(minutes=duracion) <= fin_dt:
+                slot_inicio = inicio_dt.time()
+                slot_fin = (inicio_dt + timedelta(minutes=duracion)).time()
+
+                try:
+                    ocupados = (
+                        supabase.table("turnos")
+                        .select("id_turno")
+                        .eq("id_organizacion", org_id)
+                        .eq("id_profesional", profesional_id)
+                        .eq("fecha", fecha_actual.isoformat())
+                        .is_("fecha_caducacion", "null")
+                        .neq("estado", "cancelado")
+                        .lt("hora_inicio", slot_fin.strftime("%H:%M:%S"))
+                        .gt("hora_fin", slot_inicio.strftime("%H:%M:%S"))
+                        .execute()
+                    )
+
+                    if ocupados.data:
+                        existentes += 1
+                    else:
+                        data = {
+                            "id_organizacion": org_id,
+                            "id_profesional": profesional_id,
+                            "fecha": fecha_actual.isoformat(),
+                            "hora_inicio": slot_inicio.strftime("%H:%M:%S"),
+                            "hora_fin": slot_fin.strftime("%H:%M:%S"),
+                            "duracion_minutos": duracion,
+                            "estado": "disponible",
+                            "origen": "manual"
+                        }
+                        insertar_con_auditoria("turnos", data)
+                        creados += 1
+
+                except Exception as e:
+                    errores.append(
+                        f"{fecha_actual.isoformat()} "
+                        f"{slot_inicio.strftime('%H:%M')}: {str(e)}"
+                    )
+
+                inicio_dt += timedelta(minutes=duracion)
+
+        fecha_actual += timedelta(days=1)
+
+    return {
+        "creados": creados,
+        "existentes": existentes,
+        "errores": errores
+    }
+
+
 # ============================================
 # FUNCIONES PARA OBTENER DATOS
 # ============================================
 
 def get_pacientes():
-    """Obtiene únicamente los pacientes de la cuenta del profesional."""
+    """Obtiene únicamente los pacientes asignados al profesional autenticado."""
     try:
         contexto = get_contexto_usuario()
 
@@ -326,6 +403,7 @@ def get_pacientes():
             supabase.table("pacientes")
             .select("*")
             .eq("id_organizacion", contexto["id_organizacion"])
+            .eq("id_profesional", contexto["id_profesional"])
             .is_("fecha_caducacion", "null")
             .order("apellido")
             .execute()
@@ -414,7 +492,6 @@ if not st.session_state.authenticated:
                 st.success("✅ Sesión iniciada")
                 st.rerun()
     
-    st.caption("📝 Usuario: admin@peps.com | Contraseña: admin123")
     st.stop()
 
 
@@ -432,6 +509,7 @@ st.sidebar.divider()
 st.sidebar.write(f"👋 **{st.session_state.user_name}**")
 st.sidebar.caption(f"📧 {st.session_state.user}")
 st.sidebar.caption(f"Rol: {contexto['rol'].capitalize()}")
+st.sidebar.caption("Versión: aislamiento-profesional-v2 | 20/11/2026")
 st.sidebar.divider()
 
 if st.sidebar.button("🚪 Cerrar Sesión", use_container_width=True):
@@ -446,16 +524,27 @@ if contexto["rol"] == "profesional":
         "🏥 Obras Sociales",
         "⏰ Disponibilidad"
     ]
+elif contexto["rol"] == "admin":
+    opciones_menu = ["📊 Administración"]
 else:
-    opciones_menu = [
-        "📊 Administración"
-    ]
+    st.error("Rol sin permisos para acceder a PEP'S.")
+    st.stop()
 
 menu = st.sidebar.radio(
     "📋 Navegación",
     opciones_menu,
     index=0
 )
+
+# Defensa de interfaz: el rol se valida antes de ejecutar cualquier módulo.
+# La seguridad definitiva también debe estar aplicada mediante RLS en Supabase.
+if contexto["rol"] == "admin" and menu != "📊 Administración":
+    st.error("El administrador no tiene acceso a módulos operativos.")
+    st.stop()
+
+if contexto["rol"] == "profesional" and menu == "📊 Administración":
+    st.error("No tenés permisos para acceder a la administración de plataforma.")
+    st.stop()
 
 # ============================================
 # DASHBOARD
@@ -516,14 +605,17 @@ elif menu == "👤 Pacientes":
             
             if st.form_submit_button("💾 Guardar Paciente"):
                 if nombre and apellido and nro_doc:
-                    org_id = get_org_id()
-                    if not org_id:
-                        st.error("❌ No hay organización configurada")
+                    contexto_actual = get_contexto_usuario()
+                    if (not contexto_actual or contexto_actual["rol"] != "profesional"
+                            or not contexto_actual.get("id_profesional")):
+                        st.error("❌ No se pudo validar el profesional de la sesión")
                         st.stop()
+                    org_id = contexto_actual["id_organizacion"]
                     
                     try:
                         data = {
                             "id_organizacion": org_id,
+                            "id_profesional": contexto_actual["id_profesional"],
                             "nombre": nombre,
                             "apellido": apellido,
                             "tipo_documento": tipo_doc,
@@ -572,18 +664,15 @@ elif menu == "⏰ Disponibilidad":
     st.title("⏰ Gestión de Agenda")
     st.subheader("Configuración masiva de turnos")
     
-    # Obtener el primer profesional
-    profesional_id = None
-    try:
-        response = supabase.table("profesionales").select("id_profesional").limit(1).execute()
-        if response.data:
-            profesional_id = response.data[0]["id_profesional"]
-    except Exception as e:
-        st.warning("⚠️ No se encontró un profesional configurado")
-    
-    if not profesional_id:
-        st.info("💡 Primero debés configurar un profesional en la base de datos.")
+    # El profesional y la cuenta se obtienen exclusivamente de la sesión autenticada.
+    contexto_actual = get_contexto_usuario()
+    if (not contexto_actual or contexto_actual["rol"] != "profesional"
+            or not contexto_actual.get("id_profesional")):
+        st.error("No se pudo validar el profesional de la sesión.")
         st.stop()
+
+    profesional_id = contexto_actual["id_profesional"]
+    org_id_contexto = contexto_actual["id_organizacion"]
     
     # ============================================
     # TABS
@@ -617,6 +706,8 @@ elif menu == "⏰ Disponibilidad":
             # Consulta base (solo turnos activos)
             query = supabase.table("turnos")\
                 .select("*")\
+                .eq("id_organizacion", org_id_contexto)\
+                .eq("id_profesional", profesional_id)\
                 .gte("fecha", fecha_desde_str)\
                 .lte("fecha", fecha_hasta_str)\
                 .is_("fecha_caducacion", "null")
@@ -713,9 +804,9 @@ elif menu == "⏰ Disponibilidad":
                                 if estado_actual == "disponible":
                                     opciones_estado = ["disponible", "programado", "confirmado"]
                                 elif estado_actual == "programado":
-                                    opciones_estado = ["programado", "confirmado", "realizado", "cancelado"]
+                                    opciones_estado = ["programado", "confirmado", "realizado"]
                                 elif estado_actual == "confirmado":
-                                    opciones_estado = ["confirmado", "realizado", "cancelado"]
+                                    opciones_estado = ["confirmado", "realizado"]
                                 else:
                                     opciones_estado = [estado_actual]
                                 
@@ -733,6 +824,8 @@ elif menu == "⏰ Disponibilidad":
                                         supabase.table("turnos")\
                                             .update({"estado": nuevo_estado})\
                                             .eq("id_turno", turno_seleccionado["id"])\
+                                            .eq("id_organizacion", org_id_contexto)\
+                                            .eq("id_profesional", profesional_id)\
                                             .execute()
                                         st.success(f"✅ Estado actualizado a **{nuevo_estado}**")
                                         st.rerun()
@@ -744,7 +837,7 @@ elif menu == "⏰ Disponibilidad":
                         with col2:
                             st.markdown("**🗑️ Cancelar turno**")
                             
-                            if estado_actual in ["disponible", "programado", "confirmado"]:
+                            if estado_actual == "programado":
                                 try:
                                     fecha_hora_turno = datetime.combine(
                                         datetime.strptime(turno_data["fecha"], "%Y-%m-%d").date(),
@@ -775,7 +868,11 @@ elif menu == "⏰ Disponibilidad":
                                 else:
                                     st.info("🔒 Este turno ya pasó y no se puede cancelar")
                             else:
-                                st.info(f"🔒 Turno {estado_actual} no se puede cancelar")
+                                st.info(
+                                    "La cancelación transaccional actual admite turnos programados. "
+                                    "Los horarios disponibles no necesitan cancelación y los confirmados "
+                                    "requieren ampliar la regla SQL antes de habilitar esa acción."
+                                )
                         
                         with col3:
                             st.markdown("**👤 Asignar paciente**")
@@ -799,6 +896,9 @@ elif menu == "⏰ Disponibilidad":
                                                     "estado": "programado"
                                                 })\
                                                 .eq("id_turno", turno_seleccionado["id"])\
+                                                .eq("id_organizacion", org_id_contexto)\
+                                                .eq("id_profesional", profesional_id)\
+                                                .eq("estado", "disponible")\
                                                 .execute()
                                             st.success("✅ Paciente asignado correctamente")
                                             st.rerun()
@@ -962,6 +1062,8 @@ elif menu == "⏰ Disponibilidad":
         try:
             response = supabase.table("turnos")\
                 .select("id_turno", count="exact")\
+                .eq("id_organizacion", org_id_contexto)\
+                .eq("id_profesional", profesional_id)\
                 .eq("estado", "disponible")\
                 .is_("fecha_caducacion", "null")\
                 .execute()
@@ -969,6 +1071,8 @@ elif menu == "⏰ Disponibilidad":
             
             response = supabase.table("turnos")\
                 .select("id_turno", count="exact")\
+                .eq("id_organizacion", org_id_contexto)\
+                .eq("id_profesional", profesional_id)\
                 .eq("estado", "programado")\
                 .is_("fecha_caducacion", "null")\
                 .execute()
@@ -976,6 +1080,8 @@ elif menu == "⏰ Disponibilidad":
             
             response = supabase.table("turnos")\
                 .select("id_turno", count="exact")\
+                .eq("id_organizacion", org_id_contexto)\
+                .eq("id_profesional", profesional_id)\
                 .eq("estado", "realizado")\
                 .is_("fecha_caducacion", "null")\
                 .execute()
@@ -1003,6 +1109,8 @@ elif menu == "⏰ Disponibilidad":
                 
                 response = supabase.table("turnos")\
                     .select("id_turno", count="exact")\
+                    .eq("id_organizacion", org_id_contexto)\
+                    .eq("id_profesional", profesional_id)\
                     .eq("fecha", fecha.isoformat())\
                     .eq("estado", "disponible")\
                     .is_("fecha_caducacion", "null")\
@@ -1011,8 +1119,11 @@ elif menu == "⏰ Disponibilidad":
                 
                 response = supabase.table("turnos")\
                     .select("id_turno", count="exact")\
+                    .eq("id_organizacion", org_id_contexto)\
+                    .eq("id_profesional", profesional_id)\
                     .eq("fecha", fecha.isoformat())\
                     .neq("estado", "disponible")\
+                    .neq("estado", "cancelado")\
                     .is_("fecha_caducacion", "null")\
                     .execute()
                 ocupados.append(response.count or 0)
@@ -1027,9 +1138,29 @@ elif menu == "⏰ Disponibilidad":
         except Exception as e:
             st.error(f"❌ Error obteniendo resumen: {str(e)}")
 
+
+# ============================================
+# ADMINISTRACIÓN DE CUENTAS
+# ============================================
+elif menu == "📊 Administración":
+    if contexto["rol"] != "admin":
+        st.error("No tenés permisos para acceder a este módulo.")
+        st.stop()
+
+    st.title("📊 Administración de PEP'S")
+    st.caption("Gestión de cuentas de consultorios y soporte de plataforma.")
+    st.info(
+        "El módulo de gestión de cuentas está pendiente de implementar. "
+        "Antes de operar sobre organizaciones necesitamos verificar el "
+        "esquema actual de la tabla organizaciones y sus relaciones con usuarios."
+    )
+    st.warning(
+        "Por diseño, el administrador de plataforma no tiene acceso a "
+        "pacientes, turnos, pagos ni información operativa de los consultorios."
+    )
+
 # ============================================
 # FOOTER
 # ============================================
 st.divider()
 st.caption("🧠 PEP'S - Sistema de Gestión para Consultorios v2.0")
-
