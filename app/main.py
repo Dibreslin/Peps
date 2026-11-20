@@ -155,25 +155,31 @@ def get_org_id():
 
 
 
+
 def insertar_con_auditoria(tabla, data):
     """
-    Inserta un registro agregando fecha_alta y usuario_alta.
+    Inserta únicamente pacientes o turnos del profesional autenticado.
+    La validación se realiza en la aplicación y nuevamente mediante RLS.
     """
-    try:
-        contexto = get_contexto_usuario()
+    contexto = get_contexto_usuario()
 
-        if not contexto:
-            raise Exception("No se pudo identificar al usuario autenticado.")
+    if not contexto or contexto["rol"] != "profesional":
+        raise Exception("Solo un profesional autenticado puede insertar datos.")
 
-        datos_insertar = data.copy()
-        datos_insertar["fecha_alta"] = datetime.now().isoformat()
-        datos_insertar["usuario_alta"] = contexto["id_usuario"]
+    if tabla not in ("pacientes", "turnos"):
+        raise Exception(f"Tabla no habilitada para inserción: {tabla}")
 
-        response = supabase.table(tabla).insert(datos_insertar).execute()
-        return response
+    if str(data.get("id_organizacion")) != str(contexto["id_organizacion"]):
+        raise Exception("La organización no coincide con la sesión.")
 
-    except Exception as e:
-        raise e
+    if str(data.get("id_profesional")) != str(contexto["id_profesional"]):
+        raise Exception("El profesional no coincide con la sesión.")
+
+    datos_insertar = data.copy()
+    datos_insertar["fecha_alta"] = datetime.now().isoformat()
+    datos_insertar["usuario_alta"] = contexto["id_usuario"]
+
+    return supabase.table(tabla).insert(datos_insertar).execute()
 
 
 def obtener_activos(tabla, columnas="*"):
@@ -184,28 +190,6 @@ def obtener_activos(tabla, columnas="*"):
         response = supabase.table(tabla)\
             .select(columnas)\
             .is_("fecha_caducacion", "null")\
-            .execute()
-        return response
-    except Exception as e:
-        raise e
-
-
-def eliminar_logico(tabla, campo_id, valor_id):
-    """
-    Eliminación lógica: actualiza fecha_caducacion en lugar de borrar
-    """
-    try:
-        data = {
-            "fecha_caducacion": datetime.now().isoformat()
-        }
-        
-        usuario_id = get_usuario_actual()
-        if usuario_id:
-            data["usuario_caducacion"] = usuario_id
-        
-        response = supabase.table(tabla)\
-            .update(data)\
-            .eq(campo_id, valor_id)\
             .execute()
         return response
     except Exception as e:
