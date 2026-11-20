@@ -503,39 +503,63 @@ contexto = get_contexto_usuario()
 if not contexto:
     st.error("No se pudo validar el usuario o su cuenta.")
     st.stop()
+
 # ============================================
-# DIAGNÓSTICO TEMPORAL RLS - QUITAR AL FINALIZAR
+# DIAGNÓSTICO TEMPORAL RLS - 18 TABLAS
 # ============================================
 if contexto["rol"] == "profesional":
     with st.expander("🔐 Diagnóstico de aislamiento RLS"):
-        if st.button("Ejecutar prueba RLS", key="btn_prueba_rls"):
-            try:
-                pacientes_rls = (
-                    supabase.table("pacientes")
-                    .select("id_paciente")
-                    .execute()
-                )
+        if st.button("Ejecutar auditoría de lectura", key="btn_prueba_rls"):
+            tablas = [
+                "agendas_recurrentes",
+                "disponibilidades",
+                "espacios_terapeuticos",
+                "obras_sociales",
+                "organizaciones",
+                "pacientes",
+                "pacientes_obras_sociales",
+                "pagos",
+                "pagos_sesiones",
+                "planes_obra_social",
+                "precios",
+                "profesionales",
+                "saldos_pacientes",
+                "sesiones",
+                "solicitudes_pacientes",
+                "turnos",
+                "tutores",
+                "usuarios"
+            ]
 
-                turnos_rls = (
-                    supabase.table("turnos")
-                    .select("id_turno")
-                    .execute()
-                )
+            resultados = []
 
-                espacios_rls = (
-                    supabase.table("espacios_terapeuticos")
-                    .select("id_espacio")
-                    .execute()
-                )
+            for tabla in tablas:
+                try:
+                    respuesta = (
+                        supabase.table(tabla)
+                        .select("*", count="exact", head=True)
+                        .execute()
+                    )
 
-                st.success("Consultas ejecutadas")
-                st.write("Usuario:", st.session_state.user)
-                st.metric("Pacientes visibles por RLS", len(pacientes_rls.data))
-                st.metric("Turnos visibles por RLS", len(turnos_rls.data))
-                st.metric("Espacios visibles por RLS", len(espacios_rls.data))
+                    resultados.append({
+                        "Tabla": tabla,
+                        "Filas visibles": respuesta.count,
+                        "Resultado": "OK"
+                    })
 
-            except Exception as e:
-                st.error(f"Error en prueba RLS: {str(e)}")
+                except Exception as e:
+                    resultados.append({
+                        "Tabla": tabla,
+                        "Filas visibles": "-",
+                        "Resultado": f"ERROR: {str(e)[:180]}"
+                    })
+
+            st.write("Usuario:", st.session_state.user)
+            st.dataframe(
+                pd.DataFrame(resultados),
+                use_container_width=True,
+                hide_index=True
+            )
 
 st.sidebar.title("🧠 PEP'S")
 st.sidebar.divider()
