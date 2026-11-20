@@ -503,6 +503,39 @@ contexto = get_contexto_usuario()
 if not contexto:
     st.error("No se pudo validar el usuario o su cuenta.")
     st.stop()
+# ============================================
+# DIAGNÓSTICO TEMPORAL RLS - QUITAR AL FINALIZAR
+# ============================================
+if contexto["rol"] == "profesional":
+    with st.expander("🔐 Diagnóstico de aislamiento RLS"):
+        if st.button("Ejecutar prueba RLS", key="btn_prueba_rls"):
+            try:
+                pacientes_rls = (
+                    supabase.table("pacientes")
+                    .select("id_paciente")
+                    .execute()
+                )
+
+                turnos_rls = (
+                    supabase.table("turnos")
+                    .select("id_turno")
+                    .execute()
+                )
+
+                espacios_rls = (
+                    supabase.table("espacios_terapeuticos")
+                    .select("id_espacio")
+                    .execute()
+                )
+
+                st.success("Consultas ejecutadas")
+                st.write("Usuario:", st.session_state.user)
+                st.metric("Pacientes visibles por RLS", len(pacientes_rls.data))
+                st.metric("Turnos visibles por RLS", len(turnos_rls.data))
+                st.metric("Espacios visibles por RLS", len(espacios_rls.data))
+
+            except Exception as e:
+                st.error(f"Error en prueba RLS: {str(e)}")
 
 st.sidebar.title("🧠 PEP'S")
 st.sidebar.divider()
