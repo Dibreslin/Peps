@@ -504,62 +504,6 @@ if not contexto:
     st.error("No se pudo validar el usuario o su cuenta.")
     st.stop()
 
-# ============================================
-# DIAGNÓSTICO TEMPORAL RLS - 18 TABLAS
-# ============================================
-if contexto["rol"] == "profesional":
-    with st.expander("🔐 Diagnóstico de aislamiento RLS"):
-        if st.button("Ejecutar auditoría de lectura", key="btn_prueba_rls"):
-            tablas = [
-                "agendas_recurrentes",
-                "disponibilidades",
-                "espacios_terapeuticos",
-                "obras_sociales",
-                "organizaciones",
-                "pacientes",
-                "pacientes_obras_sociales",
-                "pagos",
-                "pagos_sesiones",
-                "planes_obra_social",
-                "precios",
-                "profesionales",
-                "saldos_pacientes",
-                "sesiones",
-                "solicitudes_pacientes",
-                "turnos",
-                "tutores",
-                "usuarios"
-            ]
-
-            resultados = []
-
-            for tabla in tablas:
-                try:
-                    respuesta = (
-                        supabase.table(tabla)
-                        .select("*", count="exact", head=True)
-                        .execute()
-                    )
-
-                    resultados.append({
-                        "Tabla": tabla,
-                        "Filas visibles": respuesta.count,
-                        "Resultado": "OK"
-                    })
-
-                except Exception as e:
-                    resultados.append({
-                        "Tabla": tabla,
-                        "Filas visibles": "-",
-                        "Resultado": f"ERROR: {str(e)[:180]}"
-                    })
-
-            st.write("Usuario:", st.session_state.user)
-            st.dataframe(
-                pd.DataFrame(resultados),
-                use_container_width=True,
-                hide_index=True
-            )
 
 st.sidebar.title("🧠 PEP'S")
 st.sidebar.divider()
